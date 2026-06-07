@@ -1,0 +1,142 @@
+{
+  "version": "3.0",
+  "screens": [
+    {
+      "id": "CONTACT_DETAILS",
+      "title": "Ihre Kontaktdaten",
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "contact_form",
+            "children": [
+              {
+                "type": "TextInput",
+                "label": "Vollständiger Name",
+                "name": "full_name",
+                "required": true,
+                "input-type": "text"
+              },
+              {
+                "type": "TextInput",
+                "label": "E-Mail-Adresse",
+                "name": "email",
+                "required": true,
+                "input-type": "email"
+              },
+              {
+                "type": "Footer",
+                "label": "Weiter",
+                "on-click-action": {
+                  "name": "navigate",
+                  "next": {
+                    "type": "screen",
+                    "name": "CAR_DETAILS"
+                  },
+                  "payload": {
+                    "full_name": "${form.full_name}",
+                    "email": "${form.email}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "CAR_DETAILS",
+      "title": "Fahrzeugdetails",
+      "terminal": true,
+      "data": {
+        "full_name": { "type": "string", "__example__": "Hans Müller" },
+        "email": { "type": "string", "__example__": "hans@example.de" }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "car_form",
+            "children": [
+              {
+                "type": "TextInput",
+                "label": "Fahrzeugmarke",
+                "name": "car_make",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "z.B. BMW, Mercedes, Audi"
+              },
+              {
+                "type": "TextInput",
+                "label": "Modell",
+                "name": "car_model",
+                "required": true,
+                "input-type": "text",
+                "helper-text": "z.B. 3er Reihe, C-Klasse"
+              },
+              {
+                "type": "TextInput",
+                "label": "Baujahr",
+                "name": "car_year",
+                "required": true,
+                "input-type": "number"
+              },
+              {
+                "type": "TextInput",
+                "label": "Kilometerstand (km)",
+                "name": "mileage",
+                "required": true,
+                "input-type": "number"
+              },
+              {
+                "type": "TextInput",
+                "label": "Verkaufspreis (€)",
+                "name": "asking_price",
+                "required": true,
+                "input-type": "number"
+              },
+              {
+                "type": "Dropdown",
+                "label": "Anzahl der Vorbesitzer",
+                "name": "previous_owners",
+                "required": true,
+                "data-source": [
+                  { "id": "1", "title": "1 (Erstbesitzer)" },
+                  { "id": "2", "title": "2" },
+                  { "id": "3", "title": "3 oder mehr" }
+                ]
+              },
+              {
+                "type": "TextArea",
+                "label": "Fahrzeugzustand / Bekannte Mängel",
+                "name": "condition",
+                "required": false,
+                "helper-text": "Beschreiben Sie den Zustand und bekannte Schäden (optional)"
+              },
+              {
+                "type": "Footer",
+                "label": "Absenden",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "full_name": "${data.full_name}",
+                    "email": "${data.email}",
+                    "car_make": "${form.car_make}",
+                    "car_model": "${form.car_model}",
+                    "car_year": "${form.car_year}",
+                    "mileage": "${form.mileage}",
+                    "asking_price": "${form.asking_price}",
+                    "previous_owners": "${form.previous_owners}",
+                    "condition": "${form.condition}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
