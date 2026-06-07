@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { supabaseBrowser } from '@/lib/supabase-browser'
 
 function IconUsers() {
   return (
@@ -47,6 +48,12 @@ const sections = [
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
+
+  async function logout() {
+    await supabaseBrowser.auth.signOut()
+    router.push('/login')
+  }
 
   return (
     <aside className="w-60 bg-gray-950 border-r border-gray-800 min-h-screen flex flex-col shrink-0">
@@ -97,12 +104,23 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Webhook hint */}
-      <div className="p-4 border-t border-gray-800">
+      {/* Bottom */}
+      <div className="p-4 border-t border-gray-800 space-y-2">
         <div className="bg-gray-900 rounded-lg p-3 border border-gray-800">
           <p className="text-gray-600 text-xs font-medium mb-1">Webhook URL</p>
           <p className="text-green-500 text-xs font-mono">/api/webhook</p>
         </div>
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:text-red-400 hover:bg-red-500/5 transition-all"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+          Sign out
+        </button>
       </div>
     </aside>
   )
