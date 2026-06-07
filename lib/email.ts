@@ -94,7 +94,7 @@ export async function sendCampaignEmail({ to, name, subject, body, replyTo }: Ca
   return resend.emails.send({
     from: FROM,
     to,
-    reply_to: replyTo,
+    replyTo: replyTo,
     subject,
     html: buildCampaignHtml(name, body),
   })
