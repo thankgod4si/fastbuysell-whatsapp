@@ -23,6 +23,12 @@ export async function sendInquiryTemplate(to: string) {
     template: {
       name: 'car_seller_inquiry',
       language: { code: 'de' },
+      components: [
+        {
+          type: 'body',
+          parameters: [],
+        },
+      ],
     },
   })
 }
