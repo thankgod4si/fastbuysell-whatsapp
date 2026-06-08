@@ -3,8 +3,9 @@ const PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!
 const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
 const FLOW_ID = process.env.WHATSAPP_FLOW_ID!
 
-async function post(payload: object) {
-  const res = await fetch(`${BASE}/${PHONE_ID}/messages`, {
+async function post(payload: object, phoneNumberId?: string) {
+  const pid = phoneNumberId || PHONE_ID
+  const res = await fetch(`${BASE}/${pid}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${TOKEN}`,
@@ -15,7 +16,7 @@ async function post(payload: object) {
   return res.json()
 }
 
-export async function sendInquiryTemplate(to: string) {
+export async function sendInquiryTemplate(to: string, phoneNumberId?: string) {
   return post({
     messaging_product: 'whatsapp',
     to,
@@ -37,10 +38,10 @@ export async function sendInquiryTemplate(to: string) {
         },
       ],
     },
-  })
+  }, phoneNumberId)
 }
 
-export async function sendFlowMessage(to: string) {
+export async function sendFlowMessage(to: string, phoneNumberId?: string) {
   return post({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -65,5 +66,5 @@ export async function sendFlowMessage(to: string) {
         },
       },
     },
-  })
+  }, phoneNumberId)
 }

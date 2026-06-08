@@ -1,7 +1,11 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY!)
-const FROM = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@fastbuyandsell.com>'
+const DEFAULT_RESEND = new Resend(process.env.RESEND_API_KEY!)
+const PLATFORM_FROM = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@trysofi.co>'
+
+function client(apiKey?: string) {
+  return apiKey ? new Resend(apiKey) : DEFAULT_RESEND
+}
 
 // ─── WhatsApp lead follow-up email (car-specific) ──────────────────────────
 
@@ -12,6 +16,9 @@ interface LeadEmailData {
   carModel: string
   carYear: string
   price: string
+  replyTo?: string
+  apiKey?: string
+  from?: string
 }
 
 function buildLeadHtml({ name, carMake, carModel, carYear, price }: LeadEmailData) {
@@ -48,9 +55,10 @@ function buildLeadHtml({ name, carMake, carModel, carYear, price }: LeadEmailDat
 }
 
 export async function sendLeadEmail(data: LeadEmailData) {
-  return resend.emails.send({
-    from: FROM,
+  return client(data.apiKey).emails.send({
+    from: data.from || PLATFORM_FROM,
     to: data.to,
+    ...(data.replyTo ? { replyTo: data.replyTo } : {}),
     subject: `Re: Your ${data.carYear} ${data.carMake} ${data.carModel} — Fast Buy & Sell`,
     html: buildLeadHtml(data),
   })
@@ -64,6 +72,8 @@ interface CampaignEmailData {
   subject: string
   body: string
   replyTo: string
+  apiKey?: string
+  from?: string
 }
 
 function buildCampaignHtml(name: string, body: string) {
@@ -90,11 +100,11 @@ function buildCampaignHtml(name: string, body: string) {
 </table></td></tr></table></body></html>`
 }
 
-export async function sendCampaignEmail({ to, name, subject, body, replyTo }: CampaignEmailData) {
-  return resend.emails.send({
-    from: FROM,
+export async function sendCampaignEmail({ to, name, subject, body, replyTo, apiKey, from }: CampaignEmailData) {
+  return client(apiKey).emails.send({
+    from: from || PLATFORM_FROM,
     to,
-    replyTo: replyTo,
+    replyTo,
     subject,
     html: buildCampaignHtml(name, body),
   })

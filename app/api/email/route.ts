@@ -1,10 +1,37 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendLeadEmail } from '@/lib/email'
+import { sendLeadEmail, sendCampaignEmail } from '@/lib/email'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
 
-// Send to a single lead
+interface UserEmailConfig {
+  apiKey?: string
+  from?: string
+  replyTo?: string
+}
+
+async function getUserEmailConfig(): Promise<UserEmailConfig> {
+  try {
+    const authClient = await createSupabaseServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (!user) return {}
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('resend_api_key, email_from, reply_to_email')
+      .eq('id', user.id)
+      .single()
+    return {
+      apiKey: profile?.resend_api_key || undefined,
+      from: profile?.email_from || undefined,
+      replyTo: profile?.reply_to_email || undefined,
+    }
+  } catch {
+    return {}
+  }
+}
+
+// Send to a single lead — optional subject/body for custom drafts
 export async function POST(request: Request) {
-  const { leadId } = await request.json()
+  const { leadId, subject, body } = await request.json()
 
   const { data: lead } = await supabase
     .from('leads')
@@ -14,16 +41,36 @@ export async function POST(request: Request) {
 
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
-  const { error } = await sendLeadEmail({
-    to: lead.email,
-    name: lead.full_name,
-    carMake: lead.car_make,
-    carModel: lead.car_model,
-    carYear: lead.car_year,
-    price: lead.asking_price,
-  })
+  const { apiKey, from, replyTo } = await getUserEmailConfig()
+  let sendError: { message: string } | null = null
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (subject && body) {
+    const { error } = await sendCampaignEmail({
+      to: lead.email,
+      name: lead.full_name,
+      subject,
+      body,
+      replyTo: replyTo || process.env.EMAIL_FROM!,
+      apiKey,
+      from,
+    })
+    sendError = error ?? null
+  } else {
+    const { error } = await sendLeadEmail({
+      to: lead.email,
+      name: lead.full_name,
+      carMake: lead.car_make,
+      carModel: lead.car_model,
+      carYear: lead.car_year,
+      price: lead.asking_price,
+      replyTo,
+      apiKey,
+      from,
+    })
+    sendError = error ?? null
+  }
+
+  if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })
 
   await supabase
     .from('leads')

@@ -51,17 +51,32 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function EmailIcon({ sent }: { sent: boolean }) {
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+
+  function copy() {
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1800)
+  }
+
   return (
-    <svg
-      width="12" height="12" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-      className={sent ? 'text-green-400' : 'text-gray-600'}
-      aria-label={sent ? 'Email sent' : 'Email not sent'}
+    <button
+      onClick={copy}
+      className="text-gray-600 hover:text-gray-300 transition-colors shrink-0"
+      title="Copy email"
     >
-      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-      <polyline points="22,6 12,13 2,6" />
-    </svg>
+      {copied ? (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
+      )}
+    </button>
   )
 }
 
@@ -69,7 +84,6 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([])
   const [selected, setSelected] = useState<Lead | null>(null)
   const [advancing, setAdvancing] = useState(false)
-  const [emailingId, setEmailingId] = useState<string | null>(null)
   const [blasting, setBlasting] = useState(false)
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
@@ -106,22 +120,6 @@ export default function LeadsPage() {
     setLeads(prev => prev.map(l => l.id === lead.id ? updated : l))
   }
 
-  async function sendEmail(lead: Lead) {
-    setEmailingId(lead.id)
-    const res = await fetch('/api/email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: lead.id }),
-    })
-    const data = await res.json()
-    setEmailingId(null)
-    if (!res.ok) { notify(data.error, false); return }
-    notify(`Email sent to ${lead.email}`)
-    const updated = { ...lead, email_sent_at: new Date().toISOString() }
-    setSelected(updated)
-    setLeads(prev => prev.map(l => l.id === lead.id ? updated : l))
-  }
-
   async function blastNewLeads() {
     const unsent = leads.filter(l => l.status === 'new' && !l.email_sent_at)
     if (!unsent.length) { notify('No new leads without emails', false); return }
@@ -152,7 +150,6 @@ export default function LeadsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Stat chips */}
           {[
             { label: 'New', count: counts.new, color: 'text-green-400' },
             { label: 'Contacted', count: counts.contacted, color: 'text-blue-400' },
@@ -164,7 +161,6 @@ export default function LeadsPage() {
             </div>
           ))}
 
-          {/* Blast button */}
           <button
             onClick={blastNewLeads}
             disabled={blasting || unsentNew === 0}
@@ -174,7 +170,7 @@ export default function LeadsPage() {
               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
               <polyline points="22,6 12,13 2,6" />
             </svg>
-            {blasting ? 'Sending...' : `Email ${unsentNew} New Lead${unsentNew !== 1 ? 's' : ''}`}
+            {blasting ? 'Sending...' : `Notify ${unsentNew} New Lead${unsentNew !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>
@@ -213,7 +209,6 @@ export default function LeadsPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_STYLE[lead.status]}`}>
                         {lead.status}
                       </span>
-                      <EmailIcon sent={!!lead.email_sent_at} />
                     </div>
                     <p className="text-gray-500 text-xs font-mono">{lead.phone}</p>
                   </div>
@@ -250,20 +245,16 @@ export default function LeadsPage() {
 
               {/* Email */}
               <div className="px-5 py-3 border-b border-gray-800">
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-gray-600 text-xs">Email</p>
-                  {selected.email_sent_at && (
-                    <span className="text-green-500 text-xs">
-                      Sent {new Date(selected.email_sent_at).toLocaleDateString()}
-                    </span>
-                  )}
+                <p className="text-gray-600 text-xs mb-1.5">Email</p>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={`mailto:${selected.email}`}
+                    className="text-green-400 text-sm hover:text-green-300 hover:underline transition-colors break-all flex-1 min-w-0"
+                  >
+                    {selected.email}
+                  </a>
+                  <CopyButton text={selected.email} />
                 </div>
-                <a
-                  href={`mailto:${selected.email}`}
-                  className="text-green-400 text-sm hover:text-green-300 hover:underline transition-colors break-all"
-                >
-                  {selected.email}
-                </a>
               </div>
 
               {/* Car details */}
@@ -294,24 +285,6 @@ export default function LeadsPage() {
                   </span>
                 </div>
 
-                {/* Send / resend email */}
-                <button
-                  onClick={() => sendEmail(selected)}
-                  disabled={emailingId === selected.id}
-                  className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-400 active:bg-green-600 text-black font-semibold py-2.5 rounded-xl text-sm transition-colors disabled:opacity-50 shadow-lg shadow-green-500/20"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                  {emailingId === selected.id
-                    ? 'Sending...'
-                    : selected.email_sent_at
-                    ? 'Resend Email'
-                    : 'Send Email'}
-                </button>
-
-                {/* Advance status */}
                 {NEXT[selected.status] && (
                   <button
                     onClick={() => advance(selected)}

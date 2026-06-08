@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
 
-// Error codes from WhatsApp Cloud API that mean the number is invalid/not on WhatsApp
 const INVALID_NUMBER_CODES = [131026, 131047, 100, 470]
 
 export async function GET(request: Request) {
@@ -21,22 +20,30 @@ export async function GET(request: Request) {
 
   if (!contact) return NextResponse.json({ sent: 0, message: 'Queue empty' })
 
-  const result = await sendInquiryTemplate(contact.phone)
+  // Use the contact owner's verified WhatsApp number if available
+  let phoneNumberId: string | undefined
+  if (contact.user_id) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('wa_phone_number_id, wa_verified')
+      .eq('id', contact.user_id)
+      .single()
+    if (profile?.wa_verified && profile.wa_phone_number_id) {
+      phoneNumberId = profile.wa_phone_number_id
+    }
+  }
+
+  const result = await sendInquiryTemplate(contact.phone, phoneNumberId)
 
   if (result.error) {
     const code = result.error.code
-
-    // Auto-blacklist numbers that aren't on WhatsApp or are invalid
-    const newStatus = INVALID_NUMBER_CODES.includes(code) ? 'blacklisted' : 'pending'
-
-    if (newStatus === 'blacklisted') {
+    if (INVALID_NUMBER_CODES.includes(code)) {
       await supabase
         .from('contacts')
         .update({ status: 'blacklisted' })
         .eq('id', contact.id)
       return NextResponse.json({ sent: 0, blacklisted: contact.phone, reason: result.error.message })
     }
-
     return NextResponse.json({ sent: 0, error: result.error.message })
   }
 

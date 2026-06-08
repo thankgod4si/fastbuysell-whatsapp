@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { supabase } from '@/lib/supabase'
 
-const BASE = `https://graph.facebook.com/v21.0`
-const PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!
+const BASE = 'https://graph.facebook.com/v21.0'
 const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
+const PLATFORM_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!
 
 export async function POST(request: Request) {
   const { phone } = await request.json()
@@ -11,7 +13,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Phone number required' }, { status: 400 })
   }
 
-  const res = await fetch(`${BASE}/${PHONE_ID}/messages`, {
+  // Use logged-in user's verified number if available
+  let phoneId = PLATFORM_PHONE_ID
+  try {
+    const authClient = await createSupabaseServerClient()
+    const { data: { user } } = await authClient.auth.getUser()
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('wa_phone_number_id, wa_verified')
+        .eq('id', user.id)
+        .single()
+      if (profile?.wa_verified && profile.wa_phone_number_id) {
+        phoneId = profile.wa_phone_number_id
+      }
+    }
+  } catch { /* fall back to platform number */ }
+
+  const res = await fetch(`${BASE}/${phoneId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${TOKEN}`,
@@ -22,7 +41,7 @@ export async function POST(request: Request) {
       to: phone.trim().replace(/\s+/g, ''),
       type: 'text',
       text: {
-        body: '👋 Hello from Fast Buy & Sell! This is a test message to confirm the WhatsApp API connection is working.',
+        body: '👋 Hello from Fast Buy & Sell! This is a test message to confirm your WhatsApp connection is working.',
       },
     }),
   })

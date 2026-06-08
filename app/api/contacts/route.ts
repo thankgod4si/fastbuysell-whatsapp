@@ -1,31 +1,44 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+
+async function getUserId() {
+  const authClient = await createSupabaseServerClient()
+  const { data: { user } } = await authClient.auth.getUser()
+  return user?.id ?? null
+}
 
 export async function GET() {
+  const userId = await getUserId()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const { data, error } = await supabase
     .from('contacts')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
 
-// Single contact: { phone }
-// Bulk contacts: { contacts: [{ phone }] }
 export async function POST(request: Request) {
+  const userId = await getUserId()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await request.json()
 
   if (body.contacts) {
     const rows = (body.contacts as { phone: string }[])
       .map(({ phone }) => ({
         phone: phone.trim().replace(/\s+/g, '').replace(/^00/, '+'),
+        user_id: userId,
       }))
       .filter(r => r.phone.length > 5)
 
     const { data, error } = await supabase
       .from('contacts')
-      .upsert(rows, { onConflict: 'phone', ignoreDuplicates: true })
+      .upsert(rows, { onConflict: 'phone,user_id', ignoreDuplicates: true })
       .select()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -39,7 +52,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from('contacts')
-    .insert({ phone: normalized })
+    .insert({ phone: normalized, user_id: userId })
     .select()
     .single()
 
