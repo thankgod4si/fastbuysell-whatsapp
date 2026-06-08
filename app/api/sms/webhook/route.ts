@@ -1,21 +1,22 @@
+import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
-// Twilio sends inbound SMS as form-urlencoded POST
+// Brevo sends inbound SMS as JSON POST
 export async function POST(request: Request) {
-  const text = await request.text()
-  const params = new URLSearchParams(text)
+  const payload = await request.json().catch(() => null)
+  if (!payload) return NextResponse.json({}, { status: 200 })
 
-  const from = params.get('From') || ''
-  const to = params.get('To') || ''
-  const body = params.get('Body') || ''
+  const from: string = payload.sender || ''
+  const to: string = payload.recipient || ''
+  const body: string = payload.text || ''
 
-  if (!from) return twiml()
+  if (!from) return NextResponse.json({}, { status: 200 })
 
-  // Find which user owns this Twilio number
+  // Find which user owns this sender number
   const { data: profile } = await supabase
     .from('profiles')
     .select('id')
-    .eq('twilio_from_number', to)
+    .eq('brevo_sms_sender', to)
     .single()
 
   const userId = profile?.id ?? null
@@ -49,11 +50,5 @@ export async function POST(request: Request) {
     })
   }
 
-  return twiml()
-}
-
-function twiml() {
-  return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
-    headers: { 'Content-Type': 'text/xml' },
-  })
+  return NextResponse.json({ status: 'ok' })
 }

@@ -11,9 +11,8 @@ interface Profile {
   wa_phone_number_id: string
   wa_display_name: string
   wa_verified: boolean
-  twilio_account_sid: string
-  twilio_auth_token: string
-  twilio_from_number: string
+  brevo_api_key: string
+  brevo_sms_sender: string
 }
 
 type WaStep = 'idle' | 'registering' | 'awaiting_code' | 'verified'
@@ -123,9 +122,8 @@ export default function SettingsPage() {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        twilio_account_sid: profile.twilio_account_sid,
-        twilio_auth_token: profile.twilio_auth_token,
-        twilio_from_number: profile.twilio_from_number,
+        brevo_api_key: profile.brevo_api_key,
+        brevo_sms_sender: profile.brevo_sms_sender,
       }),
     })
     setSavingSms(false)
@@ -301,41 +299,42 @@ export default function SettingsPage() {
         </form>
       </Section>
 
-      {/* ── SMS (Twilio) ── */}
-      <Section title="SMS (Twilio)">
+      {/* ── SMS (Brevo) ── */}
+      <Section title="SMS (Brevo)">
         <p className="text-gray-600 text-xs -mt-3">
-          Connect your Twilio account to send bulk SMS to car sellers.{' '}
-          <a href="https://twilio.com" target="_blank" rel="noreferrer" className="text-green-500 hover:underline">
-            Get a free Twilio account →
+          Use your Brevo account to send bulk SMS worldwide.{' '}
+          <a href="https://brevo.com" target="_blank" rel="noreferrer" className="text-green-500 hover:underline">
+            Get a free Brevo account →
           </a>
         </p>
         <form onSubmit={saveSms} className="space-y-4">
-          <Field label="Account SID" hint="From twilio.com → Console → Account Info">
-            <Input
-              value={profile.twilio_account_sid ?? ''}
-              onChange={e => setProfile(p => ({ ...p, twilio_account_sid: e.target.value }))}
-              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            />
-          </Field>
-          <Field label="Auth Token" hint="Found next to your Account SID in the Twilio Console">
+          <Field label="Brevo API Key" hint="From brevo.com → Settings → API Keys">
             <Input
               type="password"
-              value={profile.twilio_auth_token ?? ''}
-              onChange={e => setProfile(p => ({ ...p, twilio_auth_token: e.target.value }))}
-              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value={profile.brevo_api_key ?? ''}
+              onChange={e => setProfile(p => ({ ...p, brevo_api_key: e.target.value }))}
+              placeholder="xkeysib-xxxxxxxxxxxxxxxxxxxxxxxx"
             />
           </Field>
-          <Field label="From Number" hint="Your Twilio phone number in E.164 format">
+          <Field
+            label="SMS Sender Name"
+            hint="Up to 11 characters shown as sender. Alphanumeric, no spaces. EU only — US requires a number."
+          >
             <Input
-              value={profile.twilio_from_number ?? ''}
-              onChange={e => setProfile(p => ({ ...p, twilio_from_number: e.target.value }))}
-              placeholder="+14155551234"
+              value={profile.brevo_sms_sender ?? ''}
+              onChange={e => setProfile(p => ({ ...p, brevo_sms_sender: e.target.value }))}
+              placeholder="FastBuySell"
+              maxLength={11}
             />
           </Field>
           <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-xs text-gray-500 leading-relaxed">
-            <strong className="text-gray-400">Inbound SMS webhook:</strong>
-            <p className="mt-1 font-mono text-green-500 break-all">/api/sms/webhook</p>
-            <p className="mt-1">Set this as the webhook URL in Twilio → Phone Numbers → your number → Messaging.</p>
+            <strong className="text-gray-400">Setup steps:</strong>
+            <ol className="mt-1 ml-3 space-y-0.5 list-decimal">
+              <li>Sign up at brevo.com (free)</li>
+              <li>Go to Settings → API Keys → Generate a new key</li>
+              <li>Make sure SMS is enabled on your account (Brevo dashboard → SMS)</li>
+              <li>Paste the API key above and set your sender name</li>
+            </ol>
           </div>
           <SaveButton saving={savingSms} saved={savedSms} />
         </form>

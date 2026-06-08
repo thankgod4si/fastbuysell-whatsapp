@@ -6,13 +6,12 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 async function getSmsConfig(userId: string) {
   const { data } = await supabase
     .from('profiles')
-    .select('twilio_account_sid, twilio_auth_token, twilio_from_number')
+    .select('brevo_api_key, brevo_sms_sender')
     .eq('id', userId)
     .single()
   return {
-    accountSid: data?.twilio_account_sid || undefined,
-    authToken: data?.twilio_auth_token || undefined,
-    from: data?.twilio_from_number || undefined,
+    apiKey: data?.brevo_api_key || undefined,
+    sender: data?.brevo_sms_sender || undefined,
   }
 }
 
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
     .update({ status: 'sent', sent_at: new Date().toISOString() })
     .eq('id', contactId)
 
-  return NextResponse.json({ success: true, sid: result.sid })
+  return NextResponse.json({ success: true, messageId: result.messageId })
 }
 
 // Bulk send all pending SMS contacts

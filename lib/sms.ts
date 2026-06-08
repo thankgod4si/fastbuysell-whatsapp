@@ -1,37 +1,35 @@
-const BASE = 'https://api.twilio.com/2010-04-01/Accounts'
+const BREVO_SMS_URL = 'https://api.brevo.com/v3/transactionalSMS/sms'
 
 interface SmsConfig {
-  accountSid?: string
-  authToken?: string
-  from?: string
-}
-
-function basicAuth(accountSid: string, authToken: string) {
-  return 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64')
+  apiKey?: string
+  sender?: string
 }
 
 function resolveConfig(override?: SmsConfig) {
   return {
-    accountSid: override?.accountSid || process.env.TWILIO_ACCOUNT_SID!,
-    authToken: override?.authToken || process.env.TWILIO_AUTH_TOKEN!,
-    from: override?.from || process.env.TWILIO_FROM_NUMBER!,
+    apiKey: override?.apiKey || process.env.BREVO_API_KEY!,
+    sender: override?.sender || process.env.BREVO_SMS_SENDER || 'FastBuySell',
   }
 }
 
-export async function sendSms(to: string, body: string, config?: SmsConfig) {
-  const { accountSid, authToken, from } = resolveConfig(config)
+export async function sendSms(to: string, content: string, config?: SmsConfig) {
+  const { apiKey, sender } = resolveConfig(config)
 
-  const res = await fetch(`${BASE}/${accountSid}/Messages.json`, {
+  const res = await fetch(BREVO_SMS_URL, {
     method: 'POST',
     headers: {
-      Authorization: basicAuth(accountSid, authToken),
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
     },
-    body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
+    body: JSON.stringify({ sender, recipient: to, content }),
   })
 
   const data = await res.json()
-  return { ok: res.ok, sid: data.sid as string | undefined, error: data.message as string | undefined }
+  return {
+    ok: res.ok,
+    messageId: data.messageId as string | undefined,
+    error: data.message as string | undefined,
+  }
 }
 
 export const DEFAULT_SMS_TEMPLATE =
