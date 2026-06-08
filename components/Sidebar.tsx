@@ -39,7 +39,8 @@ const ICON = {
   leads:      ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   sms:        ['M22 2 11 13', 'M22 2 15 22l-4-9-9-4 20-7'],
   email:      ['M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z', 'M22 6 12 13 2 6'],
-  logs:       ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M16 13H8', 'M16 17H8', 'M10 9H8'],
+  templates:  ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M12 11v6', 'M9 14h6'],
+  logs:       ['M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'],
   settings:   ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'],
   admin:      'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   logout:     ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'M16 17l5-5-5-5', 'M21 12H9'],
@@ -59,8 +60,9 @@ const NAV: NavItem[] = [
   { group: 'Channels',  href: '/contacts',  label: 'WhatsApp',     icon: ICON.whatsapp,  color: '#25D366' },
   { group: 'Channels',  href: '/leads',     label: 'Leads / CRM',  icon: ICON.leads,     color: '#34C759' },
   { group: 'Channels',  href: '/sms',       label: 'SMS',          icon: ICON.sms,       color: '#FF9500' },
-  { group: 'Channels',  href: '/campaigns', label: 'Email',        icon: ICON.email,     color: '#AF52DE' },
-  { group: 'Analytics', href: '/logs',      label: 'Activity Logs',icon: ICON.logs,      color: '#5856D6' },
+  { group: 'Channels',  href: '/campaigns', label: 'Email',         icon: ICON.email,      color: '#AF52DE' },
+  { group: 'Channels',  href: '/templates', label: 'Templates',     icon: ICON.templates,  color: '#5856D6' },
+  { group: 'Analytics', href: '/logs',      label: 'Activity Logs', icon: ICON.logs,       color: '#8E8E93' },
   { group: 'Account',   href: '/settings',  label: 'Settings',     icon: ICON.settings,  color: '#8E8E93' },
 ]
 
