@@ -82,11 +82,19 @@ export async function POST(request: Request) {
 
 // Blast all new leads that haven't been emailed yet
 export async function GET() {
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('*')
-    .eq('status', 'new')
-    .is('email_sent_at', null)
+  const { apiKey, from: emailFrom, replyTo } = await getUserEmailConfig()
+
+  const userId = await (async () => {
+    try {
+      const authClient = await createSupabaseServerClient()
+      const { data: { user } } = await authClient.auth.getUser()
+      return user?.id ?? null
+    } catch { return null }
+  })()
+
+  let query = supabase.from('leads').select('*').eq('status', 'new').is('email_sent_at', null)
+  if (userId) query = query.eq('user_id', userId)
+  const { data: leads } = await query
 
   if (!leads?.length) return NextResponse.json({ sent: 0, message: 'No new leads to email' })
 
@@ -101,6 +109,9 @@ export async function GET() {
       carModel: lead.car_model,
       carYear: lead.car_year,
       price: lead.asking_price,
+      apiKey,
+      from: emailFrom,
+      replyTo,
     })
 
     if (!error) {

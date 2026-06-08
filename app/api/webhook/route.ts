@@ -4,7 +4,6 @@ import { sendFlowMessage } from '@/lib/whatsapp'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
-// Meta webhook verification
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const mode = searchParams.get('hub.mode')
@@ -21,28 +20,42 @@ export async function POST(request: Request) {
   const body = await request.json()
 
   try {
-    const message = body?.entry?.[0]?.changes?.[0]?.value?.messages?.[0]
+    const value = body?.entry?.[0]?.changes?.[0]?.value
+    const message = value?.messages?.[0]
     if (!message) return NextResponse.json({ status: 'ok' })
 
     const from: string = message.from
+    // The business phone number ID that received the message
+    const businessPhoneNumberId: string | undefined = value?.metadata?.phone_number_id
+
+    // Resolve which user owns this phone number
+    let userId: string | null = null
+    if (businessPhoneNumberId) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('wa_phone_number_id', businessPhoneNumberId)
+        .single()
+      userId = profile?.id ?? null
+    }
 
     // Template quick reply button clicked
     if (message.type === 'button') {
       const payload: string = message.button?.payload ?? ''
 
       if (payload === 'INTERESTED') {
-        await sendFlowMessage(from)
-        await supabase
-          .from('contacts')
-          .update({ status: 'replied' })
-          .eq('phone', from)
+        // Send flow from the same number that sent the template
+        await sendFlowMessage(from, businessPhoneNumberId)
+
+        const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
+        if (userId) q.eq('user_id', userId)
+        await q
       }
 
       if (payload === 'OPT_OUT') {
-        await supabase
-          .from('contacts')
-          .update({ status: 'blacklisted' })
-          .eq('phone', from)
+        const q = supabase.from('contacts').update({ status: 'blacklisted' }).eq('phone', from)
+        if (userId) q.eq('user_id', userId)
+        await q
       }
     }
 
@@ -50,11 +63,9 @@ export async function POST(request: Request) {
     if (message.type === 'interactive' && message.interactive?.type === 'nfm_reply') {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
 
-      const { data: contact } = await supabase
-        .from('contacts')
-        .select('id')
-        .eq('phone', from)
-        .single()
+      const contactQuery = supabase.from('contacts').select('id').eq('phone', from)
+      if (userId) contactQuery.eq('user_id', userId)
+      const { data: contact } = await contactQuery.single()
 
       await supabase.from('leads').insert({
         contact_id: contact?.id ?? null,
@@ -69,6 +80,7 @@ export async function POST(request: Request) {
         previous_owners: flowData.previous_owners,
         condition: flowData.condition ?? null,
         status: 'new',
+        user_id: userId,
       })
     }
   } catch (err) {
