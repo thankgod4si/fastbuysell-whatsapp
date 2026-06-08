@@ -9,6 +9,38 @@ const STATUS_STYLE: Record<Lead['status'], string> = {
   closed: 'bg-gray-500/10 text-gray-500 border border-gray-700',
 }
 
+const SOURCE_BADGE: Record<string, { label: string; style: string; icon: React.ReactNode }> = {
+  whatsapp: {
+    label: 'WhatsApp',
+    style: 'bg-green-500/10 text-green-400 border border-green-500/20',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z" />
+        <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.102 1.523 5.828L.057 23.428a.5.5 0 0 0 .614.614l5.6-1.466A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.697 9.697 0 0 1-4.962-1.363l-.356-.214-3.684.965.982-3.583-.233-.372A9.699 9.699 0 0 1 2.25 12C2.25 6.624 6.623 2.25 12 2.25c5.376 0 9.75 4.374 9.75 9.75S17.376 21.75 12 21.75z" />
+      </svg>
+    ),
+  },
+  sms: {
+    label: 'SMS',
+    style: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+      </svg>
+    ),
+  },
+  email: {
+    label: 'Email',
+    style: 'bg-purple-500/10 text-purple-400 border border-purple-500/20',
+    icon: (
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+        <polyline points="22,6 12,13 2,6" />
+      </svg>
+    ),
+  },
+}
+
 const NEXT: Record<Lead['status'], Lead['status'] | null> = {
   new: 'contacted',
   contacted: 'closed',
@@ -209,6 +241,12 @@ export default function LeadsPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_STYLE[lead.status]}`}>
                         {lead.status}
                       </span>
+                      {lead.source && SOURCE_BADGE[lead.source] && (
+                        <span className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${SOURCE_BADGE[lead.source].style}`}>
+                          {SOURCE_BADGE[lead.source].icon}
+                          {SOURCE_BADGE[lead.source].label}
+                        </span>
+                      )}
                     </div>
                     <p className="text-gray-500 text-xs font-mono">{lead.phone}</p>
                   </div>

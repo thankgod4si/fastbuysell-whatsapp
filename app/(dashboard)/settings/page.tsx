@@ -11,6 +11,9 @@ interface Profile {
   wa_phone_number_id: string
   wa_display_name: string
   wa_verified: boolean
+  twilio_account_sid: string
+  twilio_auth_token: string
+  twilio_from_number: string
 }
 
 type WaStep = 'idle' | 'registering' | 'awaiting_code' | 'verified'
@@ -69,6 +72,10 @@ export default function SettingsPage() {
   const [savingEmail, setSavingEmail] = useState(false)
   const [savedEmail, setSavedEmail] = useState(false)
 
+  // SMS save state
+  const [savingSms, setSavingSms] = useState(false)
+  const [savedSms, setSavedSms] = useState(false)
+
   // WhatsApp registration state
   const [waStep, setWaStep] = useState<WaStep>('idle')
   const [waError, setWaError] = useState('')
@@ -107,6 +114,23 @@ export default function SettingsPage() {
     setSavingProfile(false)
     setSavedProfile(true)
     setTimeout(() => setSavedProfile(false), 2500)
+  }
+
+  async function saveSms(e: React.FormEvent) {
+    e.preventDefault()
+    setSavingSms(true)
+    await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        twilio_account_sid: profile.twilio_account_sid,
+        twilio_auth_token: profile.twilio_auth_token,
+        twilio_from_number: profile.twilio_from_number,
+      }),
+    })
+    setSavingSms(false)
+    setSavedSms(true)
+    setTimeout(() => setSavedSms(false), 2500)
   }
 
   async function saveEmail(e: React.FormEvent) {
@@ -274,6 +298,46 @@ export default function SettingsPage() {
             </ol>
           </div>
           <SaveButton saving={savingEmail} saved={savedEmail} />
+        </form>
+      </Section>
+
+      {/* ── SMS (Twilio) ── */}
+      <Section title="SMS (Twilio)">
+        <p className="text-gray-600 text-xs -mt-3">
+          Connect your Twilio account to send bulk SMS to car sellers.{' '}
+          <a href="https://twilio.com" target="_blank" rel="noreferrer" className="text-green-500 hover:underline">
+            Get a free Twilio account →
+          </a>
+        </p>
+        <form onSubmit={saveSms} className="space-y-4">
+          <Field label="Account SID" hint="From twilio.com → Console → Account Info">
+            <Input
+              value={profile.twilio_account_sid ?? ''}
+              onChange={e => setProfile(p => ({ ...p, twilio_account_sid: e.target.value }))}
+              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            />
+          </Field>
+          <Field label="Auth Token" hint="Found next to your Account SID in the Twilio Console">
+            <Input
+              type="password"
+              value={profile.twilio_auth_token ?? ''}
+              onChange={e => setProfile(p => ({ ...p, twilio_auth_token: e.target.value }))}
+              placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            />
+          </Field>
+          <Field label="From Number" hint="Your Twilio phone number in E.164 format">
+            <Input
+              value={profile.twilio_from_number ?? ''}
+              onChange={e => setProfile(p => ({ ...p, twilio_from_number: e.target.value }))}
+              placeholder="+14155551234"
+            />
+          </Field>
+          <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-xs text-gray-500 leading-relaxed">
+            <strong className="text-gray-400">Inbound SMS webhook:</strong>
+            <p className="mt-1 font-mono text-green-500 break-all">/api/sms/webhook</p>
+            <p className="mt-1">Set this as the webhook URL in Twilio → Phone Numbers → your number → Messaging.</p>
+          </div>
+          <SaveButton saving={savingSms} saved={savedSms} />
         </form>
       </Section>
 

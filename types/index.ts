@@ -1,13 +1,17 @@
-// WhatsApp
+// WhatsApp / SMS contacts
 export type ContactStatus = 'pending' | 'sent' | 'replied' | 'blacklisted'
+export type ContactChannel = 'whatsapp' | 'sms'
 export type LeadStatus = 'new' | 'contacted' | 'closed'
+export type LeadSource = 'whatsapp' | 'sms' | 'email'
 
 export interface Contact {
   id: string
   phone: string
   status: ContactStatus
+  channel: ContactChannel
   sent_at: string | null
   created_at: string
+  user_id: string | null
 }
 
 export interface Lead {
@@ -24,8 +28,10 @@ export interface Lead {
   previous_owners: string
   condition: string | null
   status: LeadStatus
+  source: LeadSource
   email_sent_at: string | null
   created_at: string
+  user_id: string | null
 }
 
 // Email campaigns
