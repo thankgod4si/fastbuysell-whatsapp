@@ -9,7 +9,7 @@ import { supabaseBrowser } from '@/lib/supabase-browser'
 // Primitives
 // ---------------------------------------------------------------------------
 
-type PathOrPaths = string | string[]
+type PathOrPaths = string | readonly string[]
 
 function SvgIcon({ d, size = 16, strokeWidth = 1.8 }: { d: PathOrPaths; size?: number; strokeWidth?: number }) {
   const paths = Array.isArray(d) ? d : [d]
