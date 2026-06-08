@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
 import { createMessageLog } from '@/lib/message-log'
+import { checkCanSend, trackSend } from '@/lib/usage'
 
 export async function POST(request: Request) {
   const { contactId } = await request.json()
@@ -15,6 +16,13 @@ export async function POST(request: Request) {
   if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
   if (contact.status !== 'pending') {
     return NextResponse.json({ error: 'Message already sent to this contact' }, { status: 400 })
+  }
+
+  if (contact.user_id) {
+    const check = await checkCanSend(contact.user_id)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
+    }
   }
 
   let phoneNumberId: string | undefined
@@ -49,6 +57,7 @@ export async function POST(request: Request) {
       recipient: contact.phone,
       userId: contact.user_id,
     }),
+    contact.user_id ? trackSend(contact.user_id) : Promise.resolve(),
   ])
 
   return NextResponse.json({ success: true })

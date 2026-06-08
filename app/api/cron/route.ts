@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
 import { createMessageLog } from '@/lib/message-log'
+import { checkCanSend, trackSend } from '@/lib/usage'
 
 const INVALID_NUMBER_CODES = [131026, 131047, 100, 470]
 
@@ -21,6 +22,18 @@ export async function GET(request: Request) {
     .single()
 
   if (!contact) return NextResponse.json({ sent: 0, message: 'Queue empty' })
+
+  if (contact.user_id) {
+    const check = await checkCanSend(contact.user_id)
+    if (!check.allowed) {
+      // Skip this user's contact — mark as failed so cron moves on
+      await supabase
+        .from('contacts')
+        .update({ status: 'blacklisted' })
+        .eq('id', contact.id)
+      return NextResponse.json({ sent: 0, skipped: contact.phone, reason: check.reason })
+    }
+  }
 
   let phoneNumberId: string | undefined
   if (contact.user_id) {
@@ -62,6 +75,7 @@ export async function GET(request: Request) {
       recipient: contact.phone,
       userId: contact.user_id,
     }),
+    contact.user_id ? trackSend(contact.user_id) : Promise.resolve(),
   ])
 
   return NextResponse.json({ sent: 1, phone: contact.phone })

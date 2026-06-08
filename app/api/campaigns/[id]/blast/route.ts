@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendCampaignEmail } from '@/lib/email'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { checkCanSend, trackSend } from '@/lib/usage'
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+
+  // Check subscription before blasting
+  const authClient = await createSupabaseServerClient()
+  const { data: { user } } = await authClient.auth.getUser()
+
+  if (user) {
+    const check = await checkCanSend(user.id)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
+    }
+  }
 
   const { data: campaign } = await supabase
     .from('campaigns')
@@ -52,12 +65,11 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     await new Promise(r => setTimeout(r, 300))
   }
 
-  // Mark campaign active if any sent
   if (sent > 0) {
-    await supabase
-      .from('campaigns')
-      .update({ status: 'active' })
-      .eq('id', id)
+    await Promise.all([
+      supabase.from('campaigns').update({ status: 'active' }).eq('id', id),
+      user ? trackSend(user.id, sent) : Promise.resolve(),
+    ])
   }
 
   return NextResponse.json({ sent, failed })

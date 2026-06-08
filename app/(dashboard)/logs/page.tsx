@@ -3,215 +3,209 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { MessageLog } from '@/types'
 
-type Channel = 'all' | 'whatsapp' | 'email' | 'sms'
-
-function DeliveryIcon({ log }: { log: MessageLog }) {
-  const { channel, status } = log
-
-  if (channel === 'whatsapp') {
-    if (status === 'read') return (
-      <span title="Read" className="flex gap-0.5">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="#34d399"><path d="M1 8l4 4L15 3"/></svg>
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="#34d399"><path d="M1 8l4 4L15 3"/></svg>
-      </span>
-    )
-    if (status === 'delivered') return (
-      <span title="Delivered" className="flex gap-0.5">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="#9ca3af"><path d="M1 8l4 4L15 3"/></svg>
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="#9ca3af"><path d="M1 8l4 4L15 3"/></svg>
-      </span>
-    )
-    if (status === 'failed') return <span title="Failed" className="text-red-400 text-xs">✕</span>
-    return (
-      <span title="Sent" className="flex">
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="#9ca3af"><path d="M1 8l4 4L15 3"/></svg>
-      </span>
-    )
-  }
-
-  if (channel === 'email') {
-    if (status === 'opened') return (
-      <span title="Opened" className="text-green-400">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-        </svg>
-      </span>
-    )
-    if (status === 'delivered') return (
-      <span title="Delivered" className="text-blue-400">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-          <polyline points="22,6 12,13 2,6"/>
-        </svg>
-      </span>
-    )
-    if (status === 'bounced' || status === 'failed') return (
-      <span title="Bounced / Failed" className="text-red-400">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-      </span>
-    )
-    return (
-      <span title="Sent" className="text-gray-500">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </span>
-    )
-  }
-
-  // SMS
-  if (status === 'delivered') return <span title="Delivered" className="text-green-400 text-xs font-bold">✓✓</span>
-  if (status === 'failed') return <span title="Failed" className="text-red-400 text-xs">✕</span>
-  return <span title="Sent" className="text-gray-500 text-xs font-bold">✓</span>
+const CHANNEL_META: Record<MessageLog['channel'], { icon: string; label: string; color: string }> = {
+  whatsapp: { icon: '💬', label: 'WhatsApp', color: '#25D366' },
+  email:    { icon: '✉️', label: 'Email',    color: '#AF52DE' },
+  sms:      { icon: '📱', label: 'SMS',      color: '#FF9500' },
 }
 
-function ChannelBadge({ channel }: { channel: string }) {
-  const styles: Record<string, string> = {
-    whatsapp: 'bg-green-500/10 text-green-400 border-green-500/20',
-    email: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    sms: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  }
-  return (
-    <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${styles[channel] ?? 'bg-gray-500/10 text-gray-400 border-gray-700'}`}>
-      {channel}
-    </span>
-  )
+const STATUS_META: Record<MessageLog['status'], { label: string; color: string; dot: string }> = {
+  sent:      { label: 'Sent',      color: '#8E8E93', dot: '#8E8E93' },
+  delivered: { label: 'Delivered', color: '#007AFF', dot: '#007AFF' },
+  read:      { label: 'Read',      color: '#34C759', dot: '#34C759' },
+  opened:    { label: 'Opened',    color: '#34C759', dot: '#34C759' },
+  failed:    { label: 'Failed',    color: '#FF3B30', dot: '#FF3B30' },
+  bounced:   { label: 'Bounced',   color: '#FF3B30', dot: '#FF3B30' },
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    sent: 'text-gray-400',
-    delivered: 'text-blue-400',
-    read: 'text-green-400',
-    opened: 'text-green-400',
-    failed: 'text-red-400',
-    bounced: 'text-red-400',
-  }
-  return <span className={`text-xs font-medium ${styles[status] ?? 'text-gray-400'}`}>{status}</span>
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
 }
 
-function fmt(ts: string | null) {
-  if (!ts) return '—'
-  return new Date(ts).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+function groupByDate(logs: MessageLog[]): { label: string; items: MessageLog[] }[] {
+  const map = new Map<string, MessageLog[]>()
+  for (const log of logs) {
+    const d = new Date(log.sent_at)
+    const today = new Date()
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    let label: string
+    if (d.toDateString() === today.toDateString()) label = 'Today'
+    else if (d.toDateString() === yesterday.toDateString()) label = 'Yesterday'
+    else label = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+    if (!map.has(label)) map.set(label, [])
+    map.get(label)!.push(log)
+  }
+  return Array.from(map.entries()).map(([label, items]) => ({ label, items }))
 }
+
+type ChannelFilter = MessageLog['channel'] | 'all'
+type StatusFilter = MessageLog['status'] | 'all'
 
 export default function LogsPage() {
   const [logs, setLogs] = useState<MessageLog[]>([])
-  const [channel, setChannel] = useState<Channel>('all')
   const [loading, setLoading] = useState(true)
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async () => {
-    const params = channel !== 'all' ? `?channel=${channel}` : ''
-    const res = await fetch(`/api/logs${params}`)
+    const res = await fetch('/api/logs')
     const data = await res.json()
     setLogs(Array.isArray(data) ? data : [])
     setLoading(false)
-  }, [channel])
+  }, [])
 
-  useEffect(() => { setLoading(true); load() }, [load])
+  useEffect(() => { load() }, [load])
 
-  const tabs: { key: Channel; label: string }[] = [
-    { key: 'all', label: 'All' },
-    { key: 'whatsapp', label: 'WhatsApp' },
-    { key: 'email', label: 'Email' },
-    { key: 'sms', label: 'SMS' },
-  ]
+  const filtered = logs.filter(l => {
+    if (channelFilter !== 'all' && l.channel !== channelFilter) return false
+    if (statusFilter !== 'all' && l.status !== statusFilter) return false
+    if (search && !l.recipient.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
 
-  const counts = {
-    delivered: logs.filter(l => l.status === 'delivered' || l.status === 'read' || l.status === 'opened').length,
-    read: logs.filter(l => l.status === 'read' || l.status === 'opened').length,
-    failed: logs.filter(l => l.status === 'failed' || l.status === 'bounced').length,
+  const grouped = groupByDate(filtered)
+
+  const totals = {
+    sent: logs.length,
+    delivered: logs.filter(l => ['delivered','read','opened'].includes(l.status)).length,
+    read: logs.filter(l => ['read','opened'].includes(l.status)).length,
+    failed: logs.filter(l => ['failed','bounced'].includes(l.status)).length,
   }
 
   return (
-    <div className="max-w-5xl">
-      <div className="mb-8 flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Message Logs</h1>
-          <p className="text-gray-500 text-sm mt-1">Delivery status across WhatsApp, Email, and SMS</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {[
-            { label: 'Delivered', count: counts.delivered, color: 'text-blue-400' },
-            { label: 'Read / Opened', count: counts.read, color: 'text-green-400' },
-            { label: 'Failed', count: counts.failed, color: 'text-red-400' },
-          ].map(s => (
-            <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-2 text-center min-w-20">
-              <p className={`font-bold text-lg tabular-nums ${s.color}`}>{s.count}</p>
-              <p className="text-gray-600 text-xs">{s.label}</p>
-            </div>
-          ))}
-        </div>
+    <div className="max-w-3xl space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-[#1C1C1E] font-black text-2xl">Activity Logs</h1>
+        <p className="text-[#8E8E93] text-sm mt-0.5">Every message your platform has sent</p>
       </div>
 
-      {/* Channel tabs */}
-      <div className="flex gap-1 mb-5 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setChannel(t.key)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              channel === t.key
-                ? 'bg-gray-800 text-white'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
-            {t.label}
-          </button>
+      {/* Summary stat bar */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { l: 'Total Sent',  v: totals.sent,      c: '#5856D6', icon: '📨' },
+          { l: 'Delivered',   v: totals.delivered,  c: '#007AFF', icon: '✓' },
+          { l: 'Read/Opened', v: totals.read,       c: '#34C759', icon: '✓✓' },
+          { l: 'Failed',      v: totals.failed,     c: '#FF3B30', icon: '✕' },
+        ].map(s => (
+          <div key={s.l} className="rounded-2xl p-4 bg-white" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <p className="text-2xl font-black tabular-nums" style={{ color: s.c }}>{s.v.toLocaleString()}</p>
+            <p className="text-[#8E8E93] text-xs mt-0.5">{s.l}</p>
+          </div>
         ))}
       </div>
 
-      {loading ? (
-        <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="h-14 bg-gray-900 border border-gray-800 rounded-xl animate-pulse" />
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Search */}
+        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 flex-1 min-w-40" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search recipient…" className="bg-transparent text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none flex-1"/>
+        </div>
+
+        {/* Channel filter */}
+        <div className="flex bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          {(['all', 'whatsapp', 'sms', 'email'] as const).map(c => (
+            <button key={c} onClick={() => setChannelFilter(c)}
+              className={`px-3.5 py-2.5 text-xs font-semibold transition-colors ${channelFilter === c ? 'text-white' : 'text-[#8E8E93] hover:text-[#1C1C1E]'}`}
+              style={channelFilter === c ? { background: c === 'all' ? '#5856D6' : CHANNEL_META[c as MessageLog['channel']].color } : {}}>
+              {c === 'all' ? 'All' : CHANNEL_META[c as MessageLog['channel']].icon + ' ' + CHANNEL_META[c as MessageLog['channel']].label}
+            </button>
           ))}
         </div>
-      ) : logs.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-14 h-14 bg-gray-900 border border-gray-800 rounded-2xl flex items-center justify-center mb-4">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4b5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </div>
-          <p className="text-gray-400 font-medium text-sm">No messages logged yet</p>
-          <p className="text-gray-600 text-sm mt-1 max-w-xs">Messages will appear here once you start sending via WhatsApp, Email, or SMS</p>
+
+        {/* Status filter */}
+        <div className="flex bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          {(['all', 'delivered', 'read', 'failed'] as const).map(s => (
+            <button key={s} onClick={() => setStatusFilter(s as StatusFilter)}
+              className={`px-3.5 py-2.5 text-xs font-semibold transition-colors ${statusFilter === s ? 'text-white' : 'text-[#8E8E93] hover:text-[#1C1C1E]'}`}
+              style={statusFilter === s ? { background: s === 'all' ? '#5856D6' : STATUS_META[s as MessageLog['status']].color } : {}}>
+              {s === 'all' ? 'All statuses' : STATUS_META[s as MessageLog['status']].label}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={load} className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-[#007AFF] bg-white" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+          ↻ Refresh
+        </button>
+      </div>
+
+      {/* Timeline */}
+      {loading ? (
+        <div className="space-y-2">{[1,2,3,4,5].map(i => <div key={i} className="h-16 bg-white rounded-2xl animate-pulse"/>)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <span className="text-5xl mb-4">🗂️</span>
+          <p className="text-[#1C1C1E] font-bold">No logs found</p>
+          <p className="text-[#8E8E93] text-sm mt-1">Start sending messages to see activity here</p>
         </div>
       ) : (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left text-gray-600 text-xs uppercase tracking-wider border-b border-gray-800">
-                <th className="px-5 py-3 font-medium">Channel</th>
-                <th className="px-5 py-3 font-medium">Recipient</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Delivery</th>
-                <th className="px-5 py-3 font-medium">Sent</th>
-                <th className="px-5 py-3 font-medium">Delivered</th>
-                <th className="px-5 py-3 font-medium">Read / Opened</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log, i) => (
-                <tr
-                  key={log.id}
-                  className={`border-b border-gray-800/60 hover:bg-gray-800/20 transition-colors ${i === logs.length - 1 ? 'border-b-0' : ''}`}
-                >
-                  <td className="px-5 py-3"><ChannelBadge channel={log.channel} /></td>
-                  <td className="px-5 py-3 font-mono text-sm text-gray-300 max-w-40 truncate">{log.recipient}</td>
-                  <td className="px-5 py-3"><StatusBadge status={log.status} /></td>
-                  <td className="px-5 py-3"><DeliveryIcon log={log} /></td>
-                  <td className="px-5 py-3 text-gray-500 text-xs">{fmt(log.sent_at)}</td>
-                  <td className="px-5 py-3 text-gray-500 text-xs">{fmt(log.delivered_at)}</td>
-                  <td className="px-5 py-3 text-gray-500 text-xs">{fmt(log.read_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {grouped.map(({ label, items }) => (
+            <div key={label}>
+              {/* Date separator */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex-1 h-px bg-black/[0.06]"/>
+                <span className="text-xs font-semibold text-[#8E8E93] shrink-0">{label}</span>
+                <div className="flex-1 h-px bg-black/[0.06]"/>
+              </div>
+
+              {/* Log entries */}
+              <div className="bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                {items.map((log, idx) => {
+                  const ch = CHANNEL_META[log.channel]
+                  const st = STATUS_META[log.status]
+                  return (
+                    <div key={log.id} className={`flex items-center gap-4 px-5 py-4 ${idx !== items.length - 1 ? 'border-b border-black/[0.04]' : ''}`}>
+                      {/* Timeline dot + channel icon */}
+                      <div className="relative shrink-0">
+                        <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg"
+                          style={{ background: `${ch.color}12` }}>
+                          {ch.icon}
+                        </div>
+                        <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white"
+                          style={{ background: st.dot }}/>
+                      </div>
+
+                      {/* Recipient + meta */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[#1C1C1E] text-sm font-semibold truncate">{log.recipient}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs font-medium" style={{ color: ch.color }}>{ch.label}</span>
+                          {log.external_id && <span className="text-[#C7C7CC] text-[10px] font-mono truncate max-w-24">{log.external_id}</span>}
+                        </div>
+                      </div>
+
+                      {/* Status + time */}
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-bold" style={{ color: st.color }}>{st.label}</span>
+                        <p className="text-[#C7C7CC] text-[10px] mt-0.5">{timeAgo(log.sent_at)}</p>
+                      </div>
+
+                      {/* Failure reason */}
+                      {log.failure_reason && (
+                        <div className="ml-2 px-2 py-1 rounded-xl bg-[#FF3B30]/8 max-w-32">
+                          <p className="text-[#FF3B30] text-[10px] truncate">{log.failure_reason}</p>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      <p className="text-center text-[#C7C7CC] text-xs pb-4">{filtered.length} of {logs.length} entries</p>
     </div>
   )
 }

@@ -1,8 +1,20 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
+import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { checkCanSend, trackSend } from '@/lib/usage'
 
 export async function POST() {
+  const authClient = await createSupabaseServerClient()
+  const { data: { user } } = await authClient.auth.getUser()
+
+  if (user) {
+    const check = await checkCanSend(user.id)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
+    }
+  }
+
   const { data: contacts } = await supabase
     .from('contacts')
     .select('*')
@@ -29,6 +41,10 @@ export async function POST() {
     }
 
     await new Promise(r => setTimeout(r, 1000))
+  }
+
+  if (sent > 0 && user) {
+    await trackSend(user.id, sent)
   }
 
   return NextResponse.json({ sent, failed })

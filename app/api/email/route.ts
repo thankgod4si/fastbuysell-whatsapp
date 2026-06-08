@@ -3,11 +3,13 @@ import { supabase } from '@/lib/supabase'
 import { sendLeadEmail, sendCampaignEmail } from '@/lib/email'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createMessageLog } from '@/lib/message-log'
+import { checkCanSend, trackSend } from '@/lib/usage'
 
 interface UserEmailConfig {
   apiKey?: string
   from?: string
   replyTo?: string
+  userId?: string
 }
 
 async function getUserEmailConfig(): Promise<UserEmailConfig> {
@@ -24,6 +26,7 @@ async function getUserEmailConfig(): Promise<UserEmailConfig> {
       apiKey: profile?.resend_api_key || undefined,
       from: profile?.email_from || undefined,
       replyTo: profile?.reply_to_email || undefined,
+      userId: user.id,
     }
   } catch {
     return {}
@@ -36,7 +39,15 @@ export async function POST(request: Request) {
   const { data: lead } = await supabase.from('leads').select('*').eq('id', leadId).single()
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
-  const { apiKey, from, replyTo } = await getUserEmailConfig()
+  const { apiKey, from, replyTo, userId } = await getUserEmailConfig()
+
+  if (userId) {
+    const check = await checkCanSend(userId)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
+    }
+  }
+
   let sendError: { message: string } | null = null
   let emailId: string | undefined
 
@@ -62,21 +73,21 @@ export async function POST(request: Request) {
   await Promise.all([
     supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', leadId),
     createMessageLog({ leadId, channel: 'email', externalId: emailId, recipient: lead.email, userId: lead.user_id }),
+    userId ? trackSend(userId) : Promise.resolve(),
   ])
 
   return NextResponse.json({ success: true })
 }
 
 export async function GET() {
-  const { apiKey, from: emailFrom, replyTo } = await getUserEmailConfig()
+  const { apiKey, from: emailFrom, replyTo, userId } = await getUserEmailConfig()
 
-  const userId = await (async () => {
-    try {
-      const authClient = await createSupabaseServerClient()
-      const { data: { user } } = await authClient.auth.getUser()
-      return user?.id ?? null
-    } catch { return null }
-  })()
+  if (userId) {
+    const check = await checkCanSend(userId)
+    if (!check.allowed) {
+      return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
+    }
+  }
 
   let query = supabase.from('leads').select('*').eq('status', 'new').is('email_sent_at', null)
   if (userId) query = query.eq('user_id', userId)
@@ -99,6 +110,7 @@ export async function GET() {
         supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', lead.id),
         createMessageLog({ leadId: lead.id, channel: 'email', externalId: data?.id, recipient: lead.email, userId: lead.user_id }),
       ])
+      if (userId) await trackSend(userId)
       sent++
     } else {
       failed.push(lead.email)

@@ -4,184 +4,237 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Campaign } from '@/types'
 
-const STATUS_STYLE: Record<Campaign['status'], string> = {
-  draft: 'bg-gray-500/10 text-gray-400 border border-gray-700',
-  active: 'bg-green-500/10 text-green-400 border border-green-500/20',
-  completed: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+type FormState = { name: string; subject: string; body: string; reply_to: string }
+const EMPTY: FormState = { name: '', subject: '', body: '', reply_to: '' }
+
+const STATUS_META: Record<Campaign['status'], { label: string; color: string; bg: string }> = {
+  draft:     { label: 'Draft',     color: '#8E8E93', bg: '#8E8E9312' },
+  active:    { label: 'Active',    color: '#34C759', bg: '#34C75912' },
+  completed: { label: 'Completed', color: '#007AFF', bg: '#007AFF12' },
 }
 
-type FormState = { name: string; subject: string; body: string; reply_to: string }
+function ComposeModal({ onClose, onCreate }: { onClose: () => void; onCreate: (id: string) => void }) {
+  const [form, setForm] = useState<FormState>(EMPTY)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
-const EMPTY: FormState = { name: '', subject: '', body: '', reply_to: '' }
+  function set(f: keyof FormState, v: string) { setForm(prev => ({ ...prev, [f]: v })) }
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    setSaving(true)
+    const res = await fetch('/api/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+    const data = await res.json()
+    setSaving(false)
+    if (!res.ok) { setError(data.error); return }
+    onCreate(data.id)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(8px)' }}>
+      <div className="w-full max-w-xl rounded-3xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(24px)', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+        {/* Modal header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]">
+          <h2 className="font-bold text-[#1C1C1E] text-lg">New Campaign</h2>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] hover:bg-[#E5E5EA] transition-colors text-lg leading-none">×</button>
+        </div>
+
+        <form onSubmit={submit} className="p-6 space-y-4">
+          {/* Campaign name */}
+          <div>
+            <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Campaign Name</label>
+            <input value={form.name} onChange={e => set('name', e.target.value)} required placeholder="Germany Car Sellers – June" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#AF52DE]/30 transition-all"/>
+          </div>
+
+          {/* Subject */}
+          <div>
+            <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Subject Line</label>
+            <input value={form.subject} onChange={e => set('subject', e.target.value)} required placeholder="We're interested in buying your car" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#AF52DE]/30 transition-all"/>
+          </div>
+
+          {/* Reply-to */}
+          <div>
+            <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Reply-To Email</label>
+            <input type="email" value={form.reply_to} onChange={e => set('reply_to', e.target.value)} required placeholder="team@yourcompany.com" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#AF52DE]/30 transition-all"/>
+          </div>
+
+          {/* Body */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-[#8E8E93] uppercase tracking-wide">Email Body</label>
+              <span className="text-[10px] text-[#AF52DE] bg-[#AF52DE]/10 px-2 py-0.5 rounded-full font-mono">{'{{name}}'} for personalisation</span>
+            </div>
+            <textarea value={form.body} onChange={e => set('body', e.target.value)} required rows={6}
+              placeholder={`Hello {{name}},\n\nWe came across your listing and would love to discuss purchasing your vehicle.\n\nBest regards,\nThe Team`}
+              className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#AF52DE]/30 transition-all resize-none font-mono leading-relaxed"/>
+          </div>
+
+          {error && <p className="text-[#FF3B30] text-sm">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-2xl text-sm font-semibold bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA] transition-colors">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50 transition-colors"
+              style={{ background: 'linear-gradient(135deg,#AF52DE,#5856D6)', boxShadow: '0 4px 12px rgba(175,82,222,0.4)' }}>
+              {saving ? 'Creating…' : 'Create Campaign →'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 export default function CampaignsPage() {
   const router = useRouter()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState<FormState>(EMPTY)
-  const [error, setError] = useState('')
+  const [selected, setSelected] = useState<Campaign | null>(null)
 
   useEffect(() => { load() }, [])
 
   async function load() {
     const res = await fetch('/api/campaigns')
-    setCampaigns(await res.json())
-  }
-
-  function set(field: keyof FormState, value: string) {
-    setForm(f => ({ ...f, [field]: value }))
-  }
-
-  async function create(e: React.BaseSyntheticEvent) {
-    e.preventDefault()
-    setError('')
-    setSaving(true)
-    const res = await fetch('/api/campaigns', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
     const data = await res.json()
-    setSaving(false)
-    if (!res.ok) { setError(data.error); return }
-    setCreating(false)
-    setForm(EMPTY)
-    router.push(`/campaigns/${data.id}`)
+    setCampaigns(Array.isArray(data) ? data : [])
+    setLoading(false)
   }
 
   async function deleteCampaign(id: string) {
-    if (!confirm('Delete this campaign? This cannot be undone.')) return
+    if (!confirm('Delete this campaign?')) return
     await fetch(`/api/campaigns/${id}`, { method: 'DELETE' })
+    setSelected(null)
     load()
   }
 
+  const stats = {
+    total: campaigns.length,
+    active: campaigns.filter(c => c.status === 'active').length,
+    draft: campaigns.filter(c => c.status === 'draft').length,
+  }
+
   return (
-    <div className="max-w-4xl">
-      {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Email Campaigns</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            Create a campaign, add contacts, blast to thousands
-          </p>
+    <div className="h-[calc(100vh-4rem)] flex flex-col max-w-6xl" style={{ margin: '-2rem' }}>
+      {creating && <ComposeModal onClose={() => setCreating(false)} onCreate={id => { setCreating(false); router.push(`/campaigns/${id}`) }} />}
+
+      {/* Gmail-style top bar */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]"
+        style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(20px)' }}>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base" style={{ background: '#AF52DE18' }}>✉️</div>
+            <div>
+              <h1 className="text-[#1C1C1E] font-bold text-sm">Email Campaigns</h1>
+              <p className="text-[#8E8E93] text-[11px]">{stats.total} campaigns · {stats.active} active</p>
+            </div>
+          </div>
+          <div className="flex gap-2 text-xs">
+            {[{l:'Total',v:stats.total,c:'#AF52DE'},{l:'Active',v:stats.active,c:'#34C759'},{l:'Draft',v:stats.draft,c:'#8E8E93'}].map(s=>(
+              <div key={s.l} className="rounded-xl px-3 py-1.5" style={{background:`${s.c}12`}}>
+                <span className="font-black text-base tabular-nums" style={{color:s.c}}>{s.v}</span>
+                <span className="ml-1.5 font-medium" style={{color:s.c}}>{s.l}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="bg-green-500 hover:bg-green-400 text-black font-semibold px-5 py-2.5 rounded-xl text-sm transition-colors shadow-lg shadow-green-500/20"
-        >
-          + New Campaign
+        <button onClick={() => setCreating(true)}
+          className="flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-2xl text-white"
+          style={{ background: 'linear-gradient(135deg,#AF52DE,#5856D6)', boxShadow: '0 4px 12px rgba(175,82,222,0.35)' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Compose
         </button>
       </div>
 
-      {/* Create modal */}
-      {creating && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-lg">
-            <div className="px-6 py-5 border-b border-gray-800 flex items-center justify-between">
-              <h2 className="font-bold text-white">New Campaign</h2>
-              <button onClick={() => setCreating(false)} className="text-gray-600 hover:text-white text-xl">×</button>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Campaign inbox list */}
+        <div className="w-80 border-r border-black/[0.06] flex flex-col overflow-y-auto" style={{ background: 'rgba(255,255,255,0.7)' }}>
+          {loading ? (
+            <div className="p-4 space-y-2">{[1,2,3].map(i => <div key={i} className="h-16 bg-black/[0.04] rounded-2xl animate-pulse"/>)}</div>
+          ) : campaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full py-16 px-6 text-center">
+              <span className="text-5xl mb-4">✉️</span>
+              <p className="text-[#1C1C1E] font-bold text-sm">No campaigns yet</p>
+              <p className="text-[#8E8E93] text-xs mt-1">Hit Compose to create your first</p>
             </div>
-            <form onSubmit={create} className="p-6 flex flex-col gap-4">
-              <Field label="Campaign Name" placeholder="e.g. Germany Car Sellers June" value={form.name} onChange={v => set('name', v)} />
-              <Field label="Email Subject" placeholder="e.g. We're interested in buying your car" value={form.subject} onChange={v => set('subject', v)} />
-              <Field label="Reply-To Email" placeholder="team@yourcompany.com" value={form.reply_to} onChange={v => set('reply_to', v)} type="email" />
-              <div>
-                <label className="text-gray-400 text-sm mb-1.5 block">
-                  Email Body
-                  <span className="text-gray-600 ml-2 font-normal">use {'{{name}}'} for personalisation</span>
-                </label>
-                <textarea
-                  value={form.body}
-                  onChange={e => set('body', e.target.value)}
-                  placeholder={`Hello {{name}},\n\nWe came across your listing and would love to discuss...\n\nBest regards,\nThe Team`}
-                  rows={8}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 transition-colors resize-none font-mono leading-relaxed"
-                  required
-                />
-              </div>
-              {error && <p className="text-red-400 text-sm">{error}</p>}
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => setCreating(false)} className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-xl text-sm font-medium transition-colors">
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving} className="flex-1 bg-green-500 hover:bg-green-400 text-black py-2.5 rounded-xl text-sm font-semibold transition-colors disabled:opacity-50">
-                  {saving ? 'Creating...' : 'Create Campaign'}
-                </button>
-              </div>
-            </form>
-          </div>
+          ) : campaigns.map(c => {
+            const meta = STATUS_META[c.status]
+            const isSelected = selected?.id === c.id
+            return (
+              <button key={c.id} onClick={() => setSelected(c)}
+                className={`w-full text-left px-4 py-4 border-b border-black/[0.04] transition-colors ${isSelected ? 'bg-[#AF52DE]/8' : 'hover:bg-black/[0.02]'}`}>
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0 mt-0.5"
+                    style={{ background: 'linear-gradient(135deg,#AF52DE,#5856D6)' }}>
+                    {c.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2 mb-0.5">
+                      <p className="text-[#1C1C1E] text-sm font-semibold truncate">{c.name}</p>
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{ background: meta.bg, color: meta.color }}>{meta.label}</span>
+                    </div>
+                    <p className="text-[#8E8E93] text-xs truncate">{c.subject}</p>
+                    <p className="text-[#C7C7CC] text-[10px] mt-0.5">{new Date(c.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
         </div>
-      )}
 
-      {/* Campaign list */}
-      {campaigns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 text-center border border-dashed border-gray-800 rounded-2xl">
-          <div className="w-14 h-14 bg-gray-900 border border-gray-800 rounded-2xl flex items-center justify-center mb-4">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4b5563" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-          </div>
-          <p className="text-gray-400 font-medium text-sm">No campaigns yet</p>
-          <p className="text-gray-600 text-sm mt-1">Click &quot;New Campaign&quot; to get started</p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {campaigns.map(c => (
-            <div
-              key={c.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl px-5 py-4 flex items-center justify-between gap-4 hover:border-gray-700 transition-colors"
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2.5 mb-1">
-                  <p className="text-white font-semibold text-sm truncate">{c.name}</p>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${STATUS_STYLE[c.status]}`}>
-                    {c.status}
+        {/* Campaign detail / reading pane */}
+        <div className="flex-1 overflow-y-auto" style={{ background: '#F2F2F7' }}>
+          {selected ? (
+            <div className="max-w-2xl mx-auto py-8 px-6">
+              {/* Thread header */}
+              <div className="bg-white rounded-3xl p-6 mb-4" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div>
+                    <h2 className="text-[#1C1C1E] font-black text-xl">{selected.subject}</h2>
+                    <p className="text-[#8E8E93] text-sm mt-1">{selected.name}</p>
+                  </div>
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full shrink-0"
+                    style={{ background: STATUS_META[selected.status].bg, color: STATUS_META[selected.status].color }}>
+                    {STATUS_META[selected.status].label}
                   </span>
                 </div>
-                <p className="text-gray-500 text-xs truncate">{c.subject}</p>
-                <p className="text-gray-600 text-xs mt-0.5">
-                  Reply-to: {c.reply_to} · Created {new Date(c.created_at).toLocaleDateString()}
-                </p>
+                <div className="flex items-center gap-4 text-xs text-[#8E8E93]">
+                  <span>From: <span className="text-[#1C1C1E] font-medium">Fast Buy &amp; Sell</span></span>
+                  <span>Reply-to: <span className="text-[#1C1C1E] font-medium">{selected.reply_to}</span></span>
+                  <span className="ml-auto">{new Date(selected.created_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => router.push(`/campaigns/${c.id}`)}
-                  className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-1.5 rounded-lg text-xs font-medium transition-colors"
-                >
-                  Open
+
+              {/* Email body */}
+              <div className="bg-white rounded-3xl p-6 mb-4" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+                <p className="text-[#8E8E93] text-xs font-semibold uppercase tracking-wide mb-4">Email Body</p>
+                <pre className="text-[#1C1C1E] text-sm leading-relaxed whitespace-pre-wrap font-sans">{selected.body}</pre>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <button onClick={() => router.push(`/campaigns/${selected.id}`)}
+                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-white"
+                  style={{ background: 'linear-gradient(135deg,#AF52DE,#5856D6)', boxShadow: '0 4px 12px rgba(175,82,222,0.3)' }}>
+                  Open &amp; Manage →
                 </button>
-                <button
-                  onClick={() => deleteCampaign(c.id)}
-                  className="text-gray-700 hover:text-red-400 px-2 py-1.5 rounded-lg text-xs transition-colors"
-                >
+                <button onClick={() => deleteCampaign(selected.id)}
+                  className="px-5 py-3 rounded-2xl text-sm font-semibold text-[#FF3B30] bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15 transition-colors">
                   Delete
                 </button>
               </div>
             </div>
-          ))}
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center h-full gap-4 text-center px-8">
+              <div className="w-20 h-20 rounded-full flex items-center justify-center text-4xl" style={{ background: 'rgba(175,82,222,0.1)' }}>✉️</div>
+              <div>
+                <p className="text-[#1C1C1E] font-bold text-lg">Email Campaigns</p>
+                <p className="text-[#8E8E93] text-sm mt-1 max-w-xs">Select a campaign to preview it, or compose a new one.</p>
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </div>
-  )
-}
-
-function Field({ label, placeholder, value, onChange, type = 'text' }: {
-  label: string; placeholder: string; value: string
-  onChange: (v: string) => void; type?: string
-}) {
-  return (
-    <div>
-      <label className="text-gray-400 text-sm mb-1.5 block">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        required
-        className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-green-500 transition-colors"
-      />
+      </div>
     </div>
   )
 }
