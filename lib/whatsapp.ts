@@ -25,8 +25,15 @@ export async function sendInquiryTemplate(to: string) {
       language: { code: 'de' },
       components: [
         {
-          type: 'body',
-          parameters: [],
+          type: 'button',
+          sub_type: 'flow',
+          index: '0',
+        },
+        {
+          type: 'button',
+          sub_type: 'quick_reply',
+          index: '1',
+          parameters: [{ type: 'payload', payload: 'OPT_OUT' }],
         },
       ],
     },
