@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
+import { createMessageLog } from '@/lib/message-log'
 
 export async function POST(request: Request) {
   const { contactId } = await request.json()
@@ -16,7 +17,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Message already sent to this contact' }, { status: 400 })
   }
 
-  // Use contact owner's verified number if available
   let phoneNumberId: string | undefined
   if (contact.user_id) {
     const { data: profile } = await supabase
@@ -35,16 +35,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error.message }, { status: 500 })
   }
 
+  const wamid: string | undefined = result.messages?.[0]?.id
+
   await Promise.all([
     supabase
       .from('contacts')
       .update({ status: 'sent', sent_at: new Date().toISOString() })
       .eq('id', contactId),
-    supabase.from('messages').insert({
-      contact_id: contactId,
-      phone: contact.phone,
-      type: 'template',
-      status: 'sent',
+    createMessageLog({
+      contactId,
+      channel: 'whatsapp',
+      externalId: wamid,
+      recipient: contact.phone,
+      userId: contact.user_id,
     }),
   ])
 

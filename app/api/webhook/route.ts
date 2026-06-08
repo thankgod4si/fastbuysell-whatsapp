@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendFlowMessage } from '@/lib/whatsapp'
+import { updateMessageStatus } from '@/lib/message-log'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
@@ -21,14 +22,33 @@ export async function POST(request: Request) {
 
   try {
     const value = body?.entry?.[0]?.changes?.[0]?.value
+
+    // ── Delivery status updates ──────────────────────────────────────────────
+    const statuses = value?.statuses as Array<{
+      id: string
+      status: string
+      timestamp: string
+      errors?: Array<{ message: string }>
+    }> | undefined
+
+    if (statuses?.length) {
+      for (const s of statuses) {
+        const status = s.status as 'sent' | 'delivered' | 'read' | 'failed'
+        await updateMessageStatus(s.id, status, {
+          timestamp: parseInt(s.timestamp),
+          reason: s.errors?.[0]?.message,
+        })
+      }
+      return NextResponse.json({ status: 'ok' })
+    }
+
+    // ── Incoming messages ────────────────────────────────────────────────────
     const message = value?.messages?.[0]
     if (!message) return NextResponse.json({ status: 'ok' })
 
     const from: string = message.from
-    // The business phone number ID that received the message
     const businessPhoneNumberId: string | undefined = value?.metadata?.phone_number_id
 
-    // Resolve which user owns this phone number
     let userId: string | null = null
     if (businessPhoneNumberId) {
       const { data: profile } = await supabase
@@ -39,14 +59,11 @@ export async function POST(request: Request) {
       userId = profile?.id ?? null
     }
 
-    // Template quick reply button clicked
     if (message.type === 'button') {
       const payload: string = message.button?.payload ?? ''
 
       if (payload === 'INTERESTED') {
-        // Send flow from the same number that sent the template
         await sendFlowMessage(from, businessPhoneNumberId)
-
         const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
         await q
@@ -59,7 +76,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // WhatsApp Flow completed
     if (message.type === 'interactive' && message.interactive?.type === 'nfm_reply') {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
 
@@ -80,6 +96,7 @@ export async function POST(request: Request) {
         previous_owners: flowData.previous_owners,
         condition: flowData.condition ?? null,
         status: 'new',
+        source: 'whatsapp',
         user_id: userId,
       })
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendLeadEmail, sendCampaignEmail } from '@/lib/email'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createMessageLog } from '@/lib/message-log'
 
 interface UserEmailConfig {
   apiKey?: string
@@ -29,58 +30,43 @@ async function getUserEmailConfig(): Promise<UserEmailConfig> {
   }
 }
 
-// Send to a single lead — optional subject/body for custom drafts
 export async function POST(request: Request) {
   const { leadId, subject, body } = await request.json()
 
-  const { data: lead } = await supabase
-    .from('leads')
-    .select('*')
-    .eq('id', leadId)
-    .single()
-
+  const { data: lead } = await supabase.from('leads').select('*').eq('id', leadId).single()
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
 
   const { apiKey, from, replyTo } = await getUserEmailConfig()
   let sendError: { message: string } | null = null
+  let emailId: string | undefined
 
   if (subject && body) {
-    const { error } = await sendCampaignEmail({
-      to: lead.email,
-      name: lead.full_name,
-      subject,
-      body,
-      replyTo: replyTo || process.env.EMAIL_FROM!,
-      apiKey,
-      from,
+    const { data, error } = await sendCampaignEmail({
+      to: lead.email, name: lead.full_name, subject, body,
+      replyTo: replyTo || process.env.EMAIL_FROM!, apiKey, from,
     })
     sendError = error ?? null
+    emailId = data?.id
   } else {
-    const { error } = await sendLeadEmail({
-      to: lead.email,
-      name: lead.full_name,
-      carMake: lead.car_make,
-      carModel: lead.car_model,
-      carYear: lead.car_year,
-      price: lead.asking_price,
-      replyTo,
-      apiKey,
-      from,
+    const { data, error } = await sendLeadEmail({
+      to: lead.email, name: lead.full_name, carMake: lead.car_make,
+      carModel: lead.car_model, carYear: lead.car_year, price: lead.asking_price,
+      replyTo, apiKey, from,
     })
     sendError = error ?? null
+    emailId = data?.id
   }
 
   if (sendError) return NextResponse.json({ error: sendError.message }, { status: 500 })
 
-  await supabase
-    .from('leads')
-    .update({ email_sent_at: new Date().toISOString() })
-    .eq('id', leadId)
+  await Promise.all([
+    supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', leadId),
+    createMessageLog({ leadId, channel: 'email', externalId: emailId, recipient: lead.email, userId: lead.user_id }),
+  ])
 
   return NextResponse.json({ success: true })
 }
 
-// Blast all new leads that haven't been emailed yet
 export async function GET() {
   const { apiKey, from: emailFrom, replyTo } = await getUserEmailConfig()
 
@@ -102,29 +88,21 @@ export async function GET() {
   const failed: string[] = []
 
   for (const lead of leads) {
-    const { error } = await sendLeadEmail({
-      to: lead.email,
-      name: lead.full_name,
-      carMake: lead.car_make,
-      carModel: lead.car_model,
-      carYear: lead.car_year,
-      price: lead.asking_price,
-      apiKey,
-      from: emailFrom,
-      replyTo,
+    const { data, error } = await sendLeadEmail({
+      to: lead.email, name: lead.full_name, carMake: lead.car_make,
+      carModel: lead.car_model, carYear: lead.car_year, price: lead.asking_price,
+      apiKey, from: emailFrom, replyTo,
     })
 
     if (!error) {
-      await supabase
-        .from('leads')
-        .update({ email_sent_at: new Date().toISOString() })
-        .eq('id', lead.id)
+      await Promise.all([
+        supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', lead.id),
+        createMessageLog({ leadId: lead.id, channel: 'email', externalId: data?.id, recipient: lead.email, userId: lead.user_id }),
+      ])
       sent++
     } else {
       failed.push(lead.email)
     }
-
-    // Small delay to respect Resend rate limits
     await new Promise(r => setTimeout(r, 300))
   }
 

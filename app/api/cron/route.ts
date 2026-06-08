@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendInquiryTemplate } from '@/lib/whatsapp'
+import { createMessageLog } from '@/lib/message-log'
 
 const INVALID_NUMBER_CODES = [131026, 131047, 100, 470]
 
@@ -14,13 +15,13 @@ export async function GET(request: Request) {
     .from('contacts')
     .select('*')
     .eq('status', 'pending')
+    .eq('channel', 'whatsapp')
     .order('created_at', { ascending: true })
     .limit(1)
     .single()
 
   if (!contact) return NextResponse.json({ sent: 0, message: 'Queue empty' })
 
-  // Use the contact owner's verified WhatsApp number if available
   let phoneNumberId: string | undefined
   if (contact.user_id) {
     const { data: profile } = await supabase
@@ -47,10 +48,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ sent: 0, error: result.error.message })
   }
 
-  await supabase
-    .from('contacts')
-    .update({ status: 'sent', sent_at: new Date().toISOString() })
-    .eq('id', contact.id)
+  const wamid: string | undefined = result.messages?.[0]?.id
+
+  await Promise.all([
+    supabase
+      .from('contacts')
+      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .eq('id', contact.id),
+    createMessageLog({
+      contactId: contact.id,
+      channel: 'whatsapp',
+      externalId: wamid,
+      recipient: contact.phone,
+      userId: contact.user_id,
+    }),
+  ])
 
   return NextResponse.json({ sent: 1, phone: contact.phone })
 }

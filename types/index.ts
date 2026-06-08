@@ -34,6 +34,27 @@ export interface Lead {
   user_id: string | null
 }
 
+// Message delivery logs
+export type MessageLogStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'bounced' | 'opened'
+export type MessageLogChannel = 'whatsapp' | 'email' | 'sms'
+
+export interface MessageLog {
+  id: string
+  contact_id: string | null
+  lead_id: string | null
+  channel: MessageLogChannel
+  external_id: string | null
+  recipient: string
+  status: MessageLogStatus
+  sent_at: string
+  delivered_at: string | null
+  read_at: string | null
+  failed_at: string | null
+  failure_reason: string | null
+  user_id: string | null
+  created_at: string
+}
+
 // Email campaigns
 export type CampaignStatus = 'draft' | 'active' | 'completed'
 export type CampaignContactStatus = 'pending' | 'sent' | 'failed'

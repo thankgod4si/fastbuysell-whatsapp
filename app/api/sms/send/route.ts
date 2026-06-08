@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendSms, DEFAULT_SMS_TEMPLATE } from '@/lib/sms'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createMessageLog } from '@/lib/message-log'
 
 async function getSmsConfig(userId: string) {
   const { data } = await supabase
@@ -39,10 +40,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error || 'Send failed' }, { status: 500 })
   }
 
-  await supabase
-    .from('contacts')
-    .update({ status: 'sent', sent_at: new Date().toISOString() })
-    .eq('id', contactId)
+  await Promise.all([
+    supabase.from('contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', contactId),
+    createMessageLog({ contactId, channel: 'sms', externalId: result.messageId, recipient: contact.phone, userId: user.id }),
+  ])
 
   return NextResponse.json({ success: true, messageId: result.messageId })
 }
@@ -72,15 +73,14 @@ export async function GET(request: Request) {
   for (const contact of contacts) {
     const result = await sendSms(contact.phone, message, config)
     if (result.ok) {
-      await supabase
-        .from('contacts')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', contact.id)
+      await Promise.all([
+        supabase.from('contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', contact.id),
+        createMessageLog({ contactId: contact.id, channel: 'sms', externalId: result.messageId, recipient: contact.phone, userId: user.id }),
+      ])
       sent++
     } else {
       failed.push(contact.phone)
     }
-    // Twilio rate limit: ~1 msg/sec on trial, ~100/sec on paid
     await new Promise(r => setTimeout(r, 50))
   }
 
