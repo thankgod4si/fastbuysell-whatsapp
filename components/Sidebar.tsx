@@ -159,7 +159,7 @@ export default function Sidebar() {
           <div className="pt-3">
             <p className="text-[#8E8E93] text-[10px] font-semibold uppercase tracking-widest px-3 mb-1">Admin</p>
             <NavItem
-              item={{ href: '/admin', label: 'User Management', icon: ICONS.admin, color: '#FF9500', group: 'Admin' }}
+              item={{ href: '/admin', label: 'User Management', icon: ICONS.admin, color: '#FF9500' }}
               active={pathname.startsWith('/admin')}
             />
           </div>
