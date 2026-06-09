@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
 
-export async function GET(_req: Request, { params }: { params: { contactId: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ contactId: string }> }) {
+  const { contactId } = await params
   const client = await createSupabaseServerClient()
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -11,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { contactId: stri
   const { data: contact } = await supabase
     .from('contacts')
     .select('id, phone, wa_name, name, status, created_at')
-    .eq('id', params.contactId)
+    .eq('id', contactId)
     .eq('user_id', user.id)
     .single()
 

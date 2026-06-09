@@ -3,9 +3,10 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
 import { generateFlowJson, createMetaFlow, uploadFlowJson, publishMetaFlow } from '@/lib/whatsapp-flows'
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
 export async function DELETE(_req: Request, { params }: Params) {
+  const { id } = await params
   const client = await createSupabaseServerClient()
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -13,7 +14,7 @@ export async function DELETE(_req: Request, { params }: Params) {
   const { error } = await supabase
     .from('flows')
     .delete()
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -22,6 +23,7 @@ export async function DELETE(_req: Request, { params }: Params) {
 
 // POST — publish flow to Meta (create + upload JSON + publish)
 export async function POST(_req: Request, { params }: Params) {
+  const { id } = await params
   const client = await createSupabaseServerClient()
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,7 +31,7 @@ export async function POST(_req: Request, { params }: Params) {
   const { data: flow, error: fetchErr } = await supabase
     .from('flows')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
@@ -69,7 +71,7 @@ export async function POST(_req: Request, { params }: Params) {
       meta_flow_id: created.id,
       meta_status: isPublished ? 'published' : 'draft',
     })
-    .eq('id', params.id)
+    .eq('id', id)
     .select()
     .single()
 
