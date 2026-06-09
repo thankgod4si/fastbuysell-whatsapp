@@ -346,7 +346,7 @@ export default function LeadsPage() {
   const selLead    = selContact ? leads.find(l => l.phone === selContact.phone) ?? null : null
 
   return (
-    <div className="flex rounded-3xl overflow-hidden" style={{ height: 'calc(100vh - 80px)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+    <div className="flex rounded-3xl overflow-hidden" style={{ height: 'calc(100vh - 4rem)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
 
       {/* ── Left: contact list ── */}
       <div className="w-64 xl:w-72 shrink-0 border-r border-black/[0.06] bg-white flex flex-col">
