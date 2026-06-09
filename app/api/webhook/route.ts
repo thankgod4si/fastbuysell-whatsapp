@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendFlowMessage } from '@/lib/whatsapp'
 import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
+import { getTokenForPhoneNumberId } from '@/lib/meta-app'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const body = await request.json()
+  console.log('[webhook] POST received', JSON.stringify(body).slice(0, 300))
 
   try {
     const value = body?.entry?.[0]?.changes?.[0]?.value
@@ -48,10 +50,13 @@ export async function POST(request: Request) {
     const from: string = rawFrom.startsWith('+') ? rawFrom : `+${rawFrom}`
     const businessPhoneNumberId: string | undefined = value?.metadata?.phone_number_id
 
+    console.log(`[webhook] msg type=${message.type} from=${from} bizId=${businessPhoneNumberId}`)
+
     // WhatsApp sends contact profile info alongside messages — capture the display name
     const waName: string | null = value?.contacts?.[0]?.profile?.name ?? null
 
     let userId: string | null = null
+    let metaToken: string | undefined
     if (businessPhoneNumberId) {
       // Check profiles table first
       const { data: profile } = await supabase
@@ -61,7 +66,7 @@ export async function POST(request: Request) {
         .single()
       userId = profile?.id ?? null
 
-      // Fall back to wa_numbers table (users who set up via settings page)
+      // Fall back to wa_numbers table
       if (!userId) {
         const { data: waNum } = await supabase
           .from('wa_numbers')
@@ -70,6 +75,11 @@ export async function POST(request: Request) {
           .single()
         userId = waNum?.user_id ?? null
       }
+
+      console.log(`[webhook] resolved userId=${userId} for bizId=${businessPhoneNumberId}`)
+
+      // Resolve per-app token for sending replies/flows back to this number
+      metaToken = await getTokenForPhoneNumberId(businessPhoneNumberId)
     }
 
     // Upsert contact with their WhatsApp profile name
@@ -115,7 +125,7 @@ export async function POST(request: Request) {
           msgType: 'button_reply',
           userId,
         })
-        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(), metaToken)
         let q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q = q.eq('user_id', userId)
         await q
@@ -138,6 +148,7 @@ export async function POST(request: Request) {
     // Text reply — send the flow message so they can tap it in place
     if (message.type === 'text') {
       const text: string = message.text?.body ?? ''
+      console.log(`[webhook] text reply from=${from} userId=${userId} contactId=${contactRecord?.id} text="${text.slice(0,50)}"`)
 
       await saveInboundMessage({
         contactId: contactRecord?.id,
@@ -148,7 +159,7 @@ export async function POST(request: Request) {
       })
 
       if (contactRecord && ['sent', 'delivered', 'read'].includes(contactRecord.status)) {
-        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(), metaToken)
         await supabase.from('contacts').update({ status: 'replied' }).eq('id', contactRecord.id)
       }
     }
@@ -202,7 +213,7 @@ export async function POST(request: Request) {
       })
     }
   } catch (err) {
-    console.error('Webhook error:', err)
+    console.error('[webhook] ERROR:', err)
   }
 
   return NextResponse.json({ status: 'ok' })
