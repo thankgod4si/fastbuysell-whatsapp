@@ -30,10 +30,11 @@ export async function POST(request: Request) {
 
   if (body.contacts) {
     const rows = (body.contacts as { phone: string }[])
-      .map(({ phone }) => ({
-        phone: phone.trim().replace(/\s+/g, '').replace(/^00/, '+'),
-        user_id: userId,
-      }))
+      .map(({ phone }) => {
+        let p = phone.trim().replace(/\s+/g, '').replace(/^00/, '+')
+        if (!p.startsWith('+') && !p.startsWith('0')) p = '+' + p
+        return { phone: p, user_id: userId }
+      })
       .filter(r => r.phone.length > 5)
 
     const { data, error } = await supabase
@@ -48,7 +49,8 @@ export async function POST(request: Request) {
   const { phone } = body
   if (!phone?.trim()) return NextResponse.json({ error: 'Phone required' }, { status: 400 })
 
-  const normalized = phone.trim().replace(/\s+/g, '').replace(/^00/, '+')
+  let normalized = phone.trim().replace(/\s+/g, '').replace(/^00/, '+')
+  if (!normalized.startsWith('+') && !normalized.startsWith('0')) normalized = '+' + normalized
 
   const { data, error } = await supabase
     .from('contacts')
