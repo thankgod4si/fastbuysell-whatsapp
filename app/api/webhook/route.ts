@@ -51,12 +51,23 @@ export async function POST(request: Request) {
 
     let userId: string | null = null
     if (businessPhoneNumberId) {
+      // Check profiles table first
       const { data: profile } = await supabase
         .from('profiles')
         .select('id')
         .eq('wa_phone_number_id', businessPhoneNumberId)
         .single()
       userId = profile?.id ?? null
+
+      // Fall back to wa_numbers table (users who set up via settings page)
+      if (!userId) {
+        const { data: waNum } = await supabase
+          .from('wa_numbers')
+          .select('user_id')
+          .eq('phone_number_id', businessPhoneNumberId)
+          .single()
+        userId = waNum?.user_id ?? null
+      }
     }
 
     // Upsert contact with their WhatsApp profile name

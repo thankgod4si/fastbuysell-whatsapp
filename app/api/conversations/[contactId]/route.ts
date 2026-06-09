@@ -18,7 +18,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ contact
 
   if (!contact) return NextResponse.json({ error: 'Contact not found' }, { status: 404 })
 
-  // Get all messages for this phone
   const { data: messages } = await supabase
     .from('message_logs')
     .select('id, direction, content, msg_type, status, channel, sent_at, delivered_at, read_at')
