@@ -81,6 +81,7 @@ interface Profile {
   subscription_status: SubscriptionStatus
   trial_sends_remaining: number
   is_admin: boolean
+  credits: number
 }
 
 const STATUS_BANNER: Record<
@@ -139,7 +140,7 @@ export default function Sidebar() {
       setUserEmail(user.email ?? '')
       const { data } = await supabaseBrowser
         .from('profiles')
-        .select('full_name, subscription_status, trial_sends_remaining, is_admin')
+        .select('full_name, subscription_status, trial_sends_remaining, is_admin, credits')
         .eq('id', user.id)
         .single()
       if (data) setProfile(data as Profile)
@@ -214,6 +215,24 @@ export default function Sidebar() {
               </p>
             )}
           </div>
+        </Link>
+      )}
+
+      {/* Credits pill */}
+      {profile !== null && (
+        <Link href="/billing" className="mx-3 mt-2 mb-1 flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-opacity hover:opacity-80"
+          style={{ background: (profile.credits ?? 0) > 0 ? 'rgba(37,211,102,0.08)' : 'rgba(255,59,48,0.07)', border: `1px solid ${(profile.credits ?? 0) > 0 ? 'rgba(37,211,102,0.2)' : 'rgba(255,59,48,0.15)'}` }}>
+          <div className="flex items-center gap-2">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={(profile.credits ?? 0) > 0 ? '#25D366' : '#FF3B30'} strokeWidth="2.5">
+              <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+            <span className="text-xs font-bold" style={{ color: (profile.credits ?? 0) > 0 ? '#25D366' : '#FF3B30' }}>
+              {(profile.credits ?? 0).toLocaleString()} credits
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold" style={{ color: (profile.credits ?? 0) > 0 ? '#25D36680' : '#FF3B3080' }}>
+            {(profile.credits ?? 0) > 0 ? 'Top up' : 'Buy credits'}
+          </span>
         </Link>
       )}
 

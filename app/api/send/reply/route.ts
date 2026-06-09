@@ -41,6 +41,10 @@ export async function POST(request: Request) {
 
   const wamid = (result.messages as Array<{ id: string }>)?.[0]?.id
 
+  // Deduct 1 credit for the reply
+  const { deductCredits } = await import('@/lib/usage')
+  await deductCredits(user.id, 1)
+
   await createMessageLog({
     contactId: contact.id,
     channel:   'whatsapp',
