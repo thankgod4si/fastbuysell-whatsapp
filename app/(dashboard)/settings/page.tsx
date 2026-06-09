@@ -18,7 +18,14 @@ interface Profile {
   messages_sent_total: number
 }
 
-type WaStep = 'idle' | 'awaiting_code' | 'verified'
+interface WaNumber {
+  id: string
+  phone_number_id: string
+  phone_number: string
+  display_name: string | null
+  is_default: boolean
+  verified: boolean
+}
 
 // ---------------------------------------------------------------------------
 // Primitives
@@ -103,25 +110,25 @@ export default function SettingsPage() {
   const [savingSms,     setSavingSms]     = useState(false)
   const [savedSms,      setSavedSms]      = useState(false)
 
-  const [waStep,     setWaStep]     = useState<WaStep>('idle')
-  const [waError,    setWaError]    = useState('')
-  const [waWorking,  setWaWorking]  = useState(false)
-  const [cc,          setCc]         = useState('')
-  const [phoneNumber, setPhoneNumber] = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [pin,         setPin]         = useState('')
-  const [codeMethod,  setCodeMethod]  = useState<'SMS' | 'VOICE'>('SMS')
-  const [verifyCode,  setVerifyCode]  = useState('')
+  // WhatsApp numbers
+  const [waNumbers,    setWaNumbers]    = useState<WaNumber[]>([])
+  const [showAddForm,  setShowAddForm]  = useState(false)
+  const [newPhone,     setNewPhone]     = useState('')
+  const [newPhoneId,   setNewPhoneId]   = useState('')
+  const [newName,      setNewName]      = useState('')
+  const [newDefault,   setNewDefault]   = useState(false)
+  const [waWorking,    setWaWorking]    = useState(false)
+  const [waError,      setWaError]      = useState('')
 
   useEffect(() => {
-    fetch('/api/profile')
-      .then(r => r.json())
-      .then((d: Partial<Profile>) => {
-        setProfile(d)
-        if (d.wa_verified)          setWaStep('verified')
-        else if (d.wa_phone_number_id) setWaStep('awaiting_code')
-        setLoading(false)
-      })
+    Promise.all([
+      fetch('/api/profile').then(r => r.json()),
+      fetch('/api/whatsapp/numbers').then(r => r.json()),
+    ]).then(([prof, nums]) => {
+      setProfile(prof as Partial<Profile>)
+      setWaNumbers(Array.isArray(nums) ? nums : [])
+      setLoading(false)
+    })
   }, [])
 
   function patch(body: Record<string, unknown>) {
@@ -153,50 +160,74 @@ export default function SettingsPage() {
     setTimeout(() => setSavedSms(false), 2500)
   }
 
-  async function registerNumber(e: React.FormEvent) {
-    e.preventDefault(); setWaError(''); setWaWorking(true)
-    const res = await fetch('/api/whatsapp/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cc, phone_number: phoneNumber, display_name: displayName, pin }),
-    })
-    const data = await res.json()
-    if (!res.ok) { setWaError(data.error); setWaWorking(false); return }
-    await requestCode()
-    setWaStep('awaiting_code')
-  }
-
-  async function requestCode() {
+  async function addNumber(e: React.FormEvent) {
+    e.preventDefault()
     setWaError(''); setWaWorking(true)
-    const res = await fetch('/api/whatsapp/request-code', {
+
+    const isFirst = waNumbers.length === 0
+    const makeDefault = isFirst || newDefault
+
+    const res = await fetch('/api/whatsapp/numbers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ method: codeMethod }),
+      body: JSON.stringify({
+        phone_number:    newPhone.trim(),
+        phone_number_id: newPhoneId.trim(),
+        display_name:    newName.trim() || null,
+        verified:        true,
+        is_default:      makeDefault,
+      }),
     })
     const data = await res.json()
+    if (!res.ok) { setWaError(data.error ?? 'Failed to add number'); setWaWorking(false); return }
+
+    // Sync default number into profile
+    if (makeDefault) {
+      await patch({
+        wa_phone_number_id: newPhoneId.trim(),
+        wa_phone_number:    newPhone.trim(),
+        wa_display_name:    newName.trim() || null,
+        wa_verified:        true,
+      })
+    }
+
+    setWaNumbers(prev =>
+      makeDefault
+        ? prev.map(n => ({ ...n, is_default: false })).concat(data as WaNumber)
+        : [...prev, data as WaNumber]
+    )
+    setNewPhone(''); setNewPhoneId(''); setNewName(''); setNewDefault(false)
+    setShowAddForm(false)
     setWaWorking(false)
-    if (!res.ok) setWaError(data.error)
   }
 
-  async function verifyNumber(e: React.FormEvent) {
-    e.preventDefault(); setWaError(''); setWaWorking(true)
-    const res = await fetch('/api/whatsapp/verify-code', {
-      method: 'POST',
+  async function setDefaultNumber(id: string, num: WaNumber) {
+    await fetch('/api/whatsapp/numbers', {
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: verifyCode }),
+      body: JSON.stringify({ id, is_default: true }),
     })
-    const data = await res.json()
-    setWaWorking(false)
-    if (!res.ok) { setWaError(data.error); return }
-    setWaStep('verified')
-    setProfile(p => ({ ...p, wa_phone_number: `+${cc}${phoneNumber}`, wa_verified: true }))
+    await patch({
+      wa_phone_number_id: num.phone_number_id,
+      wa_phone_number:    num.phone_number,
+      wa_display_name:    num.display_name,
+      wa_verified:        true,
+    })
+    setWaNumbers(prev => prev.map(n => ({ ...n, is_default: n.id === id })))
   }
 
-  function disconnectNumber() {
-    patch({ wa_phone_number_id: null, wa_phone_number: null, wa_display_name: null, wa_verified: false })
-    setWaStep('idle')
-    setProfile(p => ({ ...p, wa_phone_number: '', wa_phone_number_id: '', wa_verified: false }))
-    setCc(''); setPhoneNumber(''); setDisplayName(''); setPin(''); setVerifyCode('')
+  async function removeNumber(id: string, wasDefault: boolean) {
+    await fetch(`/api/whatsapp/numbers?id=${id}`, { method: 'DELETE' })
+    const remaining = waNumbers.filter(n => n.id !== id)
+    setWaNumbers(remaining)
+    // If we removed the default, promote the first remaining as default
+    if (wasDefault && remaining.length > 0) {
+      await setDefaultNumber(remaining[0].id, remaining[0])
+    }
+    // If no numbers left, clear profile
+    if (remaining.length === 0) {
+      await patch({ wa_phone_number_id: null, wa_phone_number: null, wa_display_name: null, wa_verified: false })
+    }
   }
 
   if (loading) {
@@ -239,6 +270,151 @@ export default function SettingsPage() {
         </form>
       </Card>
 
+      {/* WhatsApp Numbers */}
+      <Card>
+        <CardHeader
+          title="WhatsApp Numbers"
+          subtitle="Link your Meta Business WhatsApp numbers. All messages route to your inbox."
+        />
+        <div className="p-6 space-y-4">
+
+          {/* No numbers yet — show prompt */}
+          {waNumbers.length === 0 && !showAddForm && (
+            <div className="rounded-2xl border-2 border-dashed border-[#E5E5EA] px-5 py-6 text-center space-y-3">
+              <p className="text-[#1C1C1E] font-semibold text-sm">No number linked yet</p>
+              <p className="text-[#8E8E93] text-xs leading-relaxed">
+                Link your WhatsApp Business number so incoming messages, leads, and contacts flow into your dashboard.
+              </p>
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="px-5 py-2.5 rounded-2xl text-sm font-bold text-white"
+                style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
+              >
+                Link a Number
+              </button>
+            </div>
+          )}
+
+          {/* Linked numbers list */}
+          {waNumbers.length > 0 && (
+            <div className="space-y-2">
+              {waNumbers.map(num => (
+                <div key={num.id} className="rounded-2xl border border-[#E5E5EA] px-4 py-3 flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#25D36615' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.99 0C5.366 0 0 5.373 0 12a11.952 11.952 0 001.636 6.062L0 24l6.134-1.612A11.944 11.944 0 0012 24c6.624 0 12-5.373 12-12S18.614 0 11.99 0zM12 22c-1.848 0-3.588-.495-5.09-1.36l-.365-.217-3.779.993.988-3.703-.238-.383A10.005 10.005 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-semibold text-[#1C1C1E] font-mono">{num.phone_number}</span>
+                      {num.is_default && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#25D36615', color: '#25D366' }}>DEFAULT</span>
+                      )}
+                    </div>
+                    {num.display_name && <p className="text-xs text-[#8E8E93] mt-0.5">{num.display_name}</p>}
+                    <p className="text-[10px] text-[#C7C7CC] font-mono mt-0.5 truncate">ID: {num.phone_number_id}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                    {!num.is_default && (
+                      <button
+                        onClick={() => setDefaultNumber(num.id, num)}
+                        className="text-[11px] font-semibold text-[#007AFF] hover:opacity-70 transition-opacity whitespace-nowrap"
+                      >
+                        Set default
+                      </button>
+                    )}
+                    <button
+                      onClick={() => removeNumber(num.id, num.is_default)}
+                      className="text-[11px] font-semibold text-[#FF3B30] hover:opacity-70 transition-opacity"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {!showAddForm && (
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full py-2.5 rounded-2xl text-sm font-semibold border border-dashed border-[#25D366] text-[#25D366] hover:bg-[#25D36608] transition-colors"
+                >
+                  + Add another number
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Add number form */}
+          {showAddForm && (
+            <form onSubmit={addNumber} className="space-y-4 pt-2 border-t border-[#F2F2F7]">
+              <p className="text-[#1C1C1E] font-semibold text-sm">Link a WhatsApp number</p>
+              <Field
+                label="Phone Number"
+                hint="Include country code, e.g. +2348104611794"
+              >
+                <TextInput
+                  value={newPhone}
+                  onChange={e => setNewPhone(e.target.value)}
+                  placeholder="+2348104611794"
+                />
+              </Field>
+              <Field
+                label="Phone Number ID"
+                hint="Meta Business Manager → WhatsApp → Phone Numbers → copy the numeric ID"
+              >
+                <TextInput
+                  value={newPhoneId}
+                  onChange={e => setNewPhoneId(e.target.value)}
+                  placeholder="1151743088022928"
+                />
+              </Field>
+              <Field label="Display Name" hint="Optional — shown in your inbox header">
+                <TextInput
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Fast Buy & Sell"
+                />
+              </Field>
+              {waNumbers.length > 0 && (
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newDefault}
+                    onChange={e => setNewDefault(e.target.checked)}
+                    className="w-4 h-4 rounded accent-[#25D366]"
+                  />
+                  <span className="text-sm text-[#3C3C43]">Set as default sending number</span>
+                </label>
+              )}
+              {waError && <p className="text-[#FF3B30] text-xs">{waError}</p>}
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={waWorking || !newPhone.trim() || !newPhoneId.trim()}
+                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
+                >
+                  {waWorking ? 'Linking…' : 'Link Number'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowAddForm(false); setWaError('') }}
+                  className="px-5 py-3 rounded-2xl text-sm font-semibold text-[#8E8E93] bg-[#F2F2F7] hover:bg-[#E5E5EA] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+              <div className="rounded-2xl bg-[#F2F2F7] px-4 py-3 text-xs text-[#8E8E93] leading-relaxed space-y-1">
+                <p className="font-semibold text-[#3C3C43]">Where to find your Phone Number ID</p>
+                <ol className="ml-3 list-decimal space-y-0.5">
+                  <li>Open Meta Business Manager</li>
+                  <li>Go to WhatsApp → Phone Numbers</li>
+                  <li>Click your number — copy the numeric ID shown (not the phone number itself)</li>
+                </ol>
+              </div>
+            </form>
+          )}
+        </div>
+      </Card>
+
       {/* Email / Resend */}
       <Card>
         <CardHeader title="Email" subtitle="Your Resend account — emails go from your domain, not ours." />
@@ -273,98 +449,6 @@ export default function SettingsPage() {
           </Field>
           <SaveBtn saving={savingSms} saved={savedSms} color="#FF9500" />
         </form>
-      </Card>
-
-      {/* WhatsApp */}
-      <Card>
-        <CardHeader title="WhatsApp" subtitle="Register your own number under this platform's Business Account." />
-        <div className="p-6">
-
-          {waStep === 'verified' && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: '#34C75910', border: '1px solid #34C75920' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34C759" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <div>
-                  <p className="text-sm font-semibold" style={{ color: '#34C759' }}>Number connected</p>
-                  <p className="text-[#8E8E93] text-xs font-mono mt-0.5">{profile.wa_phone_number}</p>
-                </div>
-              </div>
-              <p className="text-[#8E8E93] text-xs leading-relaxed">
-                Contacts you add will be sent from this number. Your WhatsApp template must be approved in Meta Business Manager under this number.
-              </p>
-              <button onClick={disconnectNumber} className="text-xs font-semibold text-[#FF3B30] hover:opacity-70 transition-opacity">
-                Disconnect number
-              </button>
-            </div>
-          )}
-
-          {waStep === 'awaiting_code' && (
-            <form onSubmit={verifyNumber} className="space-y-4">
-              <p className="text-[#8E8E93] text-sm">
-                Verification code sent to <span className="text-[#1C1C1E] font-mono font-semibold">+{cc}{phoneNumber}</span> via {codeMethod}.
-              </p>
-              <Field label="Verification Code">
-                <TextInput value={verifyCode} onChange={e => setVerifyCode(e.target.value)} placeholder="123456" maxLength={6} />
-              </Field>
-              {waError && <p className="text-[#FF3B30] text-xs">{waError}</p>}
-              <div className="flex items-center gap-3">
-                <button type="submit" disabled={waWorking || verifyCode.length < 6}
-                  className="px-5 py-2.5 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
-                  style={{ background: '#25D366' }}>
-                  {waWorking ? 'Verifying…' : 'Verify'}
-                </button>
-                <button type="button" onClick={requestCode} disabled={waWorking}
-                  className="text-sm text-[#8E8E93] hover:text-[#1C1C1E] transition-colors">
-                  Resend via {codeMethod === 'SMS' ? 'Voice' : 'SMS'}
-                </button>
-              </div>
-            </form>
-          )}
-
-          {waStep === 'idle' && (
-            <form onSubmit={registerNumber} className="space-y-4">
-              <p className="text-[#8E8E93] text-xs leading-relaxed">
-                The number must not be registered on personal WhatsApp or another Business Account.
-              </p>
-              <div className="flex gap-3">
-                <div className="w-24">
-                  <Field label="Country Code">
-                    <TextInput value={cc} onChange={e => setCc(e.target.value.replace(/\D/g, ''))} placeholder="49" maxLength={4} />
-                  </Field>
-                </div>
-                <div className="flex-1">
-                  <Field label="Phone Number">
-                    <TextInput value={phoneNumber} onChange={e => setPhoneNumber(e.target.value.replace(/\D/g, ''))} placeholder="1712345678" />
-                  </Field>
-                </div>
-              </div>
-              <Field label="Business Display Name" hint="Shown to recipients. Must match your Meta verified name.">
-                <TextInput value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Fast Buy & Sell Berlin" />
-              </Field>
-              <Field label="2FA PIN" hint="6-digit PIN required by WhatsApp for two-step verification.">
-                <TextInput type="password" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ''))} placeholder="••••••" maxLength={6} />
-              </Field>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[#8E8E93]">Verify via</span>
-                {(['SMS', 'VOICE'] as const).map(m => (
-                  <button key={m} type="button" onClick={() => setCodeMethod(m)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
-                    style={codeMethod === m
-                      ? { background: '#25D36612', color: '#25D366', borderColor: '#25D36630' }
-                      : { background: 'transparent', color: '#8E8E93', borderColor: '#E5E5EA' }}>
-                    {m}
-                  </button>
-                ))}
-              </div>
-              {waError && <p className="text-[#FF3B30] text-xs">{waError}</p>}
-              <button type="submit" disabled={waWorking || !cc || !phoneNumber || !displayName || pin.length < 6}
-                className="w-full py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
-                style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.3)' }}>
-                {waWorking ? 'Registering…' : 'Register Number'}
-              </button>
-            </form>
-          )}
-        </div>
       </Card>
     </div>
   )
