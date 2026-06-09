@@ -2,8 +2,6 @@ import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabase } from '@/lib/supabase'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' })
-
 const PLAN_LIMITS: Record<string, { planId: string; limit: number }> = {
   [process.env.STRIPE_PRICE_STARTER ?? '']: { planId: 'starter', limit: 2000  },
   [process.env.STRIPE_PRICE_GROWTH  ?? '']: { planId: 'growth',  limit: 15000 },
@@ -20,6 +18,7 @@ async function getSupabaseUserId(customerId: string): Promise<string | null> {
 }
 
 export async function POST(request: Request) {
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-05-27.dahlia' })
   const body = await request.text()
   const sig  = request.headers.get('stripe-signature')!
 
