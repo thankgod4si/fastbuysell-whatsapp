@@ -20,6 +20,77 @@ function parseNumbers(raw: string): string[] {
     .filter((p, i, arr) => arr.indexOf(p) === i)
 }
 
+// ── Avatar helpers ────────────────────────────────────────────────────────
+const PALETTE = ['#FF6B6B','#4ECDC4','#45B7D1','#96CEB4','#F7DC6F','#BB8FCE','#FF8C94','#52C9A0','#FFB347','#87CEEB']
+function avatarColor(seed: string) {
+  let h = 0; for (const c of seed) h = ((h << 5) - h) + c.charCodeAt(0)
+  return PALETTE[Math.abs(h) % PALETTE.length]
+}
+function initials(name: string | null, phone: string) {
+  if (name) {
+    const p = name.trim().split(/\s+/)
+    return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : p[0].slice(0, 2).toUpperCase()
+  }
+  return phone.slice(-2)
+}
+function displayName(c: Contact) { return c.wa_name ?? c.name ?? c.phone }
+
+function Avatar({ contact, size = 40 }: { contact: Contact; size?: number }) {
+  const bg = avatarColor(contact.phone)
+  return (
+    <div className="rounded-full flex items-center justify-center text-white font-bold shrink-0"
+      style={{ width: size, height: size, background: bg, fontSize: size * 0.36 }}>
+      {initials(displayName(contact) !== contact.phone ? displayName(contact) : null, contact.phone)}
+    </div>
+  )
+}
+
+// ── Profile drawer ────────────────────────────────────────────────────────
+function ProfileDrawer({ contact, onClose }: { contact: Contact; onClose: () => void }) {
+  const name = displayName(contact)
+  const statusColors: Record<string, { c: string; bg: string }> = {
+    pending: { c: '#FF9500', bg: '#FF950015' },
+    sent:    { c: '#007AFF', bg: '#007AFF15' },
+    replied: { c: '#34C759', bg: '#34C75915' },
+    blacklisted: { c: '#8E8E93', bg: '#8E8E9315' },
+  }
+  const sm = statusColors[contact.status] ?? { c: '#8E8E93', bg: '#8E8E9315' }
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full sm:w-72 rounded-t-3xl sm:rounded-3xl overflow-y-auto"
+        style={{ background: 'white', boxShadow: '-8px 0 32px rgba(0,0,0,0.15)', maxHeight: '82vh' }}>
+        <div className="p-6 text-center relative"
+          style={{ background: `linear-gradient(135deg,${avatarColor(contact.phone)}22,${avatarColor(contact.phone)}06)` }}>
+          <button onClick={onClose}
+            className="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/[0.07] flex items-center justify-center text-[#8E8E93] hover:bg-black/[0.12] text-xl leading-none">×</button>
+          <Avatar contact={contact} size={72} />
+          <h2 className="text-[#1C1C1E] font-black text-lg mt-3">{name}</h2>
+          {contact.wa_name && contact.wa_name !== name && (
+            <p className="text-[#C7C7CC] text-xs mt-0.5">WA: {contact.wa_name}</p>
+          )}
+          <p className="text-[#8E8E93] text-sm font-mono mt-0.5">{contact.phone}</p>
+        </div>
+        <div className="p-5 space-y-3">
+          {[
+            { label: 'Phone',    value: contact.phone },
+            { label: 'Status',   value: contact.status },
+            { label: 'Channel',  value: contact.channel },
+            { label: 'Added',    value: new Date(contact.created_at).toLocaleDateString() },
+            ...(contact.sent_at ? [{ label: 'Sent',  value: new Date(contact.sent_at).toLocaleString() }] : []),
+          ].map(r => (
+            <div key={r.label} className="flex items-center justify-between bg-[#F2F2F7] rounded-2xl px-4 py-2.5">
+              <span className="text-[#8E8E93] text-xs">{r.label}</span>
+              <span className="text-xs font-semibold capitalize" style={r.label === 'Status' ? { color: sm.c } : { color: '#1C1C1E' }}>{r.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StatusDot({ status }: { status: Contact['status'] }) {
   const colors: Record<string, string> = { pending: '#FF9500', sent: '#007AFF', replied: '#34C759', blacklisted: '#8E8E93' }
   return <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colors[status] ?? '#8E8E93' }} />
@@ -52,9 +123,10 @@ export default function ContactsPage() {
   const [testing,    setTesting]    = useState(false)
   const [showAdd,    setShowAdd]    = useState(false)
   const [searchQ,    setSearchQ]    = useState('')
-  const [reply,      setReply]      = useState('')
-  const [sending,    setSending]    = useState(false)
-  const bottomRef                   = useRef<HTMLDivElement>(null)
+  const [reply,       setReply]       = useState('')
+  const [sending,     setSending]     = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
+  const bottomRef                     = useRef<HTMLDivElement>(null)
 
   const detected = parseNumbers(raw)
 
@@ -221,20 +293,16 @@ export default function ContactsPage() {
                 <p className="text-[#8E8E93] text-xs mt-1">Add numbers using the button above</p>
               </div>
             ) : filtered.map(c => (
-              <button key={c.id} onClick={()=>setSelected(c)} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-black/[0.04] transition-colors ${selected?.id===c.id?'bg-[#25D366]/8':'hover:bg-black/[0.02]'}`}>
-                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-white text-sm font-bold" style={{background:'linear-gradient(135deg,#25D366,#128C7E)'}}>
-                  {c.phone.slice(-2)}
-                </div>
+              <button key={c.id} onClick={()=>{ setSelected(c); setShowProfile(false) }} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-black/[0.04] transition-colors ${selected?.id===c.id?'bg-[#25D366]/8':'hover:bg-black/[0.02]'}`}>
+                <Avatar contact={c} size={42} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[#1C1C1E] text-sm font-semibold font-mono truncate">{c.phone}</p>
+                    <p className="text-[#1C1C1E] text-sm font-semibold truncate">{displayName(c)}</p>
                     <p className="text-[#8E8E93] text-[10px] shrink-0">{formatTime(c.sent_at)}</p>
                   </div>
                   <div className="flex items-center gap-1 mt-0.5">
                     <DeliveryTick status={c.status} />
-                    <p className="text-[#8E8E93] text-xs truncate">
-                      {c.status === 'replied' ? 'Replied to your message' : c.status === 'sent' ? 'Template sent' : c.status === 'blacklisted' ? 'Opted out' : 'Queued for sending'}
-                    </p>
+                    <p className="text-[#8E8E93] text-xs truncate font-mono">{c.phone}</p>
                   </div>
                 </div>
                 <StatusDot status={c.status} />
@@ -269,18 +337,22 @@ export default function ContactsPage() {
             </div>
           ) : selected ? (
             <>
-              {/* Chat header */}
-              <div className="flex items-center gap-3 px-5 py-3 border-b border-black/[0.08]" style={{background:'rgba(255,255,255,0.9)',backdropFilter:'blur(20px)'}}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold" style={{background:'linear-gradient(135deg,#25D366,#128C7E)'}}>
-                  {selected.phone.slice(-2)}
-                </div>
-                <div>
-                  <p className="text-[#1C1C1E] font-semibold text-sm font-mono">{selected.phone}</p>
-                  <p className="text-[#8E8E93] text-xs">{selected.status === 'replied' ? '🟢 Replied' : selected.status === 'sent' ? '✓✓ Delivered' : selected.status === 'pending' ? '⏳ Queued' : '⛔ Opted out'}</p>
-                </div>
-                <div className="ml-auto flex gap-2">
+              {/* Chat header — click avatar or name to open profile */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.08]" style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(20px)'}}>
+                <button onClick={()=>setShowProfile(true)} className="flex items-center gap-3 hover:opacity-75 flex-1 min-w-0 text-left">
+                  <Avatar contact={selected} size={38} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[#1C1C1E] font-bold text-sm truncate">{displayName(selected)}</p>
+                    <p className="text-[#8E8E93] text-[11px] font-mono">{selected.phone}</p>
+                  </div>
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-xl capitalize"
+                    style={selected.status==='replied'?{background:'#34C75912',color:'#34C759'}:selected.status==='sent'?{background:'#007AFF12',color:'#007AFF'}:{background:'#FF950012',color:'#FF9500'}}>
+                    {selected.status==='replied'?'Replied':selected.status==='sent'?'Delivered':selected.status==='pending'?'Queued':'Opted out'}
+                  </span>
                   {selected.status === 'pending' && (
-                    <button onClick={()=>sendOne(selected)} disabled={sendingId===selected.id} className="px-4 py-1.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50" style={{background:'#25D366',boxShadow:'0 2px 6px rgba(37,211,102,0.4)'}}>
+                    <button onClick={()=>sendOne(selected)} disabled={sendingId===selected.id} className="px-3 py-1.5 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50" style={{background:'#25D366',boxShadow:'0 2px 6px rgba(37,211,102,0.4)'}}>
                       {sendingId===selected.id?'Sending…':'Send Now'}
                     </button>
                   )}
@@ -365,6 +437,11 @@ export default function ContactsPage() {
           </div>
         ))}
       </div>
+
+      {/* Profile drawer */}
+      {showProfile && selected && (
+        <ProfileDrawer contact={selected} onClose={() => setShowProfile(false)} />
+      )}
     </div>
   )
 }

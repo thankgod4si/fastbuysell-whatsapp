@@ -12,6 +12,8 @@ export interface Contact {
   sent_at: string | null
   created_at: string
   user_id: string | null
+  wa_name: string | null
+  name: string | null
 }
 
 export interface Lead {
