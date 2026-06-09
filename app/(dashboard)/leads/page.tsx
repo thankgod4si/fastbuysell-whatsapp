@@ -235,6 +235,7 @@ function ConversationPanel({ contactId }: { contactId: string }) {
     <div className="flex flex-col h-full">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-3 py-3" style={{ background: '#ECE5DD' }}>
+        <div className="min-h-full flex flex-col justify-end">
         {loading ? (
           <div className="flex justify-center pt-8">
             <div className="w-6 h-6 border-2 border-[#25D366] border-t-transparent rounded-full animate-spin" />
@@ -252,6 +253,7 @@ function ConversationPanel({ contactId }: { contactId: string }) {
           </div>
         ))}
         <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Reply input */}

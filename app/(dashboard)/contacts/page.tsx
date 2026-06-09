@@ -497,8 +497,9 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              {/* Messages area */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+              {/* Messages area — flex-col + justify-end keeps messages pinned to bottom */}
+              <div className="flex-1 overflow-y-auto px-4 py-4">
+                <div className="min-h-full flex flex-col justify-end">
                 {messages.length === 0 ? (
                   <div className="flex justify-center pt-8">
                     <span className="text-[11px] text-[#5C5C5C] bg-white/60 px-3 py-1 rounded-full">
@@ -534,6 +535,7 @@ export default function ContactsPage() {
                   )
                 })}
                 <div ref={bottomRef} />
+                </div>
               </div>
 
               {/* Reply input */}
