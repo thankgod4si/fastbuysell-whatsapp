@@ -59,3 +59,20 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data, { status: 201 })
 }
+
+export async function DELETE(request: Request) {
+  const userId = await getUserId()
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { ids } = await request.json() as { ids: string[] }
+  if (!ids?.length) return NextResponse.json({ error: 'ids required' }, { status: 400 })
+
+  const { error } = await supabase
+    .from('contacts')
+    .delete()
+    .in('id', ids)
+    .eq('user_id', userId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ deleted: ids.length })
+}

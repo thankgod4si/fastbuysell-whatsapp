@@ -26,22 +26,20 @@ function avatarColor(seed: string) {
   let h = 0; for (const c of seed) h = ((h << 5) - h) + c.charCodeAt(0)
   return PALETTE[Math.abs(h) % PALETTE.length]
 }
-function initials(name: string | null, phone: string) {
-  if (name) {
-    const p = name.trim().split(/\s+/)
-    return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : p[0].slice(0, 2).toUpperCase()
-  }
-  return phone.slice(-2)
+function initials(name: string | null) {
+  if (!name) return 'WA'
+  const p = name.trim().split(/\s+/)
+  return p.length >= 2 ? (p[0][0] + p[1][0]).toUpperCase() : p[0].slice(0, 2).toUpperCase()
 }
 function displayName(c: Contact) { return c.wa_name ?? c.name ?? c.phone }
 
 function Avatar({ contact, size = 40 }: { contact: Contact; size?: number }) {
   const bg = avatarColor(contact.phone)
-  const label = displayName(contact)
+  const name = contact.wa_name ?? contact.name ?? null
   return (
     <div className="rounded-full flex items-center justify-center text-white font-bold shrink-0"
       style={{ width: size, height: size, background: bg, fontSize: size * 0.36 }}>
-      {initials(label !== contact.phone ? label : null, contact.phone)}
+      {initials(name)}
     </div>
   )
 }
@@ -207,6 +205,8 @@ export default function ContactsPage() {
   const [reply,       setReply]       = useState('')
   const [sending,     setSending]     = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [selectMode,  setSelectMode]  = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const bottomRef                     = useRef<HTMLDivElement>(null)
 
   const detected = parseNumbers(raw)
@@ -275,6 +275,31 @@ export default function ContactsPage() {
     setSendingId(null)
     if (!res.ok) notify(data.error || 'Send failed', false)
     else { notify('Message sent!'); load() }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  async function deleteSelected() {
+    if (!selectedIds.size) return
+    const ids = [...selectedIds]
+    const res = await fetch('/api/contacts', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    const data = await res.json()
+    if (!res.ok) { notify(data.error || 'Delete failed', false); return }
+    notify(`${data.deleted} contact${data.deleted !== 1 ? 's' : ''} deleted`)
+    if (selected && ids.includes(selected.id)) setSelected(null)
+    setSelectedIds(new Set())
+    setSelectMode(false)
+    load()
   }
 
   async function sendReply(e: { preventDefault(): void }) {
@@ -351,9 +376,28 @@ export default function ContactsPage() {
             <input value={testPhone} onChange={e=>setTestPhone(e.target.value)} placeholder="Test: +49…" className="bg-[#F2F2F7] rounded-xl px-3 py-2 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] border-0 outline-none w-44"/>
             <button type="submit" disabled={testing||!testPhone.trim()} className="text-xs font-semibold px-3 py-2 rounded-xl transition-colors disabled:opacity-40" style={{background:'#007AFF18',color:'#007AFF'}}>{testing?'…':'Test'}</button>
           </form>
-          <button onClick={()=>setShowAdd(v=>!v)} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all" style={{background:'#25D366',color:'white',boxShadow:'0 2px 8px rgba(37,211,102,0.4)'}}>
-            <span>+</span> Add Numbers
-          </button>
+          {selectMode ? (
+            <>
+              <button onClick={() => setSelectedIds(new Set(filtered.map(c => c.id)))} className="text-xs font-semibold px-3 py-2 rounded-xl" style={{background:'#007AFF12',color:'#007AFF'}}>
+                All
+              </button>
+              <button onClick={deleteSelected} disabled={!selectedIds.size} className="text-sm font-bold px-4 py-2 rounded-xl disabled:opacity-40 transition-all" style={{background:'#FF3B3015',color:'#FF3B30'}}>
+                Delete{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
+              </button>
+              <button onClick={() => { setSelectMode(false); setSelectedIds(new Set()) }} className="text-sm font-semibold px-4 py-2 rounded-xl" style={{background:'#F2F2F7',color:'#1C1C1E'}}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={()=>setSelectMode(true)} className="text-sm font-semibold px-4 py-2 rounded-xl" style={{background:'#F2F2F7',color:'#1C1C1E'}}>
+                Select
+              </button>
+              <button onClick={()=>setShowAdd(v=>!v)} className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl transition-all" style={{background:'#25D366',color:'white',boxShadow:'0 2px 8px rgba(37,211,102,0.4)'}}>
+                <span>+</span> Add Numbers
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -374,7 +418,12 @@ export default function ContactsPage() {
                 <p className="text-[#8E8E93] text-xs mt-1">Add numbers using the button above</p>
               </div>
             ) : filtered.map(c => (
-              <button key={c.id} onClick={()=>{ setSelected(c); setShowProfile(false) }} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-black/[0.04] transition-colors ${selected?.id===c.id?'bg-[#25D366]/8':'hover:bg-black/[0.02]'}`}>
+              <button key={c.id} onClick={()=>{ if (selectMode) { toggleSelect(c.id); return } setSelected(c); setShowProfile(false) }} className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-black/[0.04] transition-colors ${!selectMode && selected?.id===c.id?'bg-[#25D366]/8':'hover:bg-black/[0.02]'}`}>
+                {selectMode && (
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${selectedIds.has(c.id)?'bg-[#FF3B30] border-[#FF3B30]':'border-[#C7C7CC]'}`}>
+                    {selectedIds.has(c.id) && <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="white" strokeWidth="2" strokeLinecap="round"/></svg>}
+                  </div>
+                )}
                 <Avatar contact={c} size={42} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">

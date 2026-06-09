@@ -35,7 +35,7 @@ export async function saveInboundMessage(params: {
   msgType: 'text' | 'button_reply' | 'form_submission'
   userId?: string | null
 }) {
-  await supabase.from('message_logs').insert({
+  const { error } = await supabase.from('message_logs').insert({
     contact_id:  params.contactId ?? null,
     channel:     'whatsapp',
     recipient:   params.phone,
@@ -46,6 +46,11 @@ export async function saveInboundMessage(params: {
     sent_at:     new Date().toISOString(),
     user_id:     params.userId ?? null,
   })
+  if (error) {
+    console.error('[saveInboundMessage] DB error:', error.message, error.details)
+  } else {
+    console.log(`[saveInboundMessage] saved phone=${params.phone} userId=${params.userId} type=${params.msgType}`)
+  }
 }
 
 export async function updateMessageStatus(

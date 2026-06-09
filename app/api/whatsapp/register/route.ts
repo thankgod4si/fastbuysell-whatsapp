@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
+import { pickMetaApp } from '@/lib/meta-app'
 
 const BASE = 'https://graph.facebook.com/v21.0'
-const WABA_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID!
-const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
 
 export async function POST(request: Request) {
   const authClient = await createSupabaseServerClient()
@@ -17,9 +16,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Country code, phone number, display name and PIN are required' }, { status: 400 })
   }
 
-  const res = await fetch(`${BASE}/${WABA_ID}/phone_numbers`, {
+  // Pick least-loaded Meta app — fall back to env var if none in DB yet
+  const app = await pickMetaApp()
+  const wabaId = app?.waba_id ?? process.env.WHATSAPP_BUSINESS_ACCOUNT_ID!
+  const token  = app?.access_token ?? process.env.WHATSAPP_ACCESS_TOKEN!
+
+  const res = await fetch(`${BASE}/${wabaId}/phone_numbers`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ cc, phone_number, verified_name: display_name, pin }),
   })
 
@@ -29,16 +33,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: data.error.message }, { status: 400 })
   }
 
-  await supabase
-    .from('profiles')
-    .upsert({
-      id: user.id,
-      wa_phone_number_id: data.id,
-      wa_phone_number: `+${cc}${phone_number}`,
-      wa_display_name: display_name,
-      wa_verified: false,
-      updated_at: new Date().toISOString(),
-    })
+  const phoneNumberId: string = data.id
+  const fullPhone = `+${cc}${phone_number}`
 
-  return NextResponse.json({ phone_number_id: data.id })
+  // Save to profiles (primary number)
+  await supabase.from('profiles').upsert({
+    id: user.id,
+    wa_phone_number_id: phoneNumberId,
+    wa_phone_number:    fullPhone,
+    wa_display_name:    display_name,
+    wa_verified:        false,
+  })
+
+  // Save to wa_numbers table with meta_app link
+  await supabase.from('wa_numbers').upsert({
+    user_id:        user.id,
+    phone_number_id: phoneNumberId,
+    phone_number:   fullPhone,
+    display_name,
+    verified:       false,
+    is_default:     true,
+    meta_app_id:    app?.id ?? null,
+  }, { onConflict: 'phone_number_id' })
+
+  return NextResponse.json({ phone_number_id: phoneNumberId })
 }

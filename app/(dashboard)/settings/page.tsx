@@ -27,6 +27,8 @@ interface WaNumber {
   verified: boolean
 }
 
+type WaStep = 'idle' | 'awaiting_code' | 'verified_pending_reload'
+
 // ---------------------------------------------------------------------------
 // Primitives
 // ---------------------------------------------------------------------------
@@ -111,14 +113,17 @@ export default function SettingsPage() {
   const [savedSms,      setSavedSms]      = useState(false)
 
   // WhatsApp numbers
-  const [waNumbers,    setWaNumbers]    = useState<WaNumber[]>([])
-  const [showAddForm,  setShowAddForm]  = useState(false)
-  const [newPhone,     setNewPhone]     = useState('')
-  const [newPhoneId,   setNewPhoneId]   = useState('')
-  const [newName,      setNewName]      = useState('')
-  const [newDefault,   setNewDefault]   = useState(false)
-  const [waWorking,    setWaWorking]    = useState(false)
-  const [waError,      setWaError]      = useState('')
+  const [waNumbers,      setWaNumbers]      = useState<WaNumber[]>([])
+  const [waStep,         setWaStep]         = useState<WaStep>('idle')
+  const [showRegForm,    setShowRegForm]    = useState(false)
+  const [regCc,          setRegCc]          = useState('')
+  const [regPhone,       setRegPhone]       = useState('')
+  const [regName,        setRegName]        = useState('')
+  const [regPin,         setRegPin]         = useState('')
+  const [regCodeMethod,  setRegCodeMethod]  = useState<'SMS' | 'VOICE'>('SMS')
+  const [verifyCode,     setVerifyCode]     = useState('')
+  const [waWorking,      setWaWorking]      = useState(false)
+  const [waError,        setWaError]        = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -160,45 +165,52 @@ export default function SettingsPage() {
     setTimeout(() => setSavedSms(false), 2500)
   }
 
-  async function addNumber(e: React.FormEvent) {
-    e.preventDefault()
-    setWaError(''); setWaWorking(true)
+  function resetRegForm() {
+    setRegCc(''); setRegPhone(''); setRegName(''); setRegPin('')
+    setVerifyCode(''); setWaError(''); setWaStep('idle'); setShowRegForm(false)
+  }
 
-    const isFirst = waNumbers.length === 0
-    const makeDefault = isFirst || newDefault
-
-    const res = await fetch('/api/whatsapp/numbers', {
+  async function registerNumber(e: React.SyntheticEvent) {
+    e.preventDefault(); setWaError(''); setWaWorking(true)
+    const res = await fetch('/api/whatsapp/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        phone_number:    newPhone.trim(),
-        phone_number_id: newPhoneId.trim(),
-        display_name:    newName.trim() || null,
-        verified:        true,
-        is_default:      makeDefault,
-      }),
+      body: JSON.stringify({ cc: regCc, phone_number: regPhone, display_name: regName, pin: regPin }),
     })
     const data = await res.json()
-    if (!res.ok) { setWaError(data.error ?? 'Failed to add number'); setWaWorking(false); return }
-
-    // Sync default number into profile
-    if (makeDefault) {
-      await patch({
-        wa_phone_number_id: newPhoneId.trim(),
-        wa_phone_number:    newPhone.trim(),
-        wa_display_name:    newName.trim() || null,
-        wa_verified:        true,
-      })
-    }
-
-    setWaNumbers(prev =>
-      makeDefault
-        ? prev.map(n => ({ ...n, is_default: false })).concat(data as WaNumber)
-        : [...prev, data as WaNumber]
-    )
-    setNewPhone(''); setNewPhoneId(''); setNewName(''); setNewDefault(false)
-    setShowAddForm(false)
     setWaWorking(false)
+    if (!res.ok) { setWaError(data.error ?? 'Registration failed'); return }
+    // Auto-request the verification code right away
+    await requestCode()
+    setWaStep('awaiting_code')
+  }
+
+  async function requestCode() {
+    setWaError(''); setWaWorking(true)
+    const res = await fetch('/api/whatsapp/request-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: regCodeMethod }),
+    })
+    const data = await res.json()
+    setWaWorking(false)
+    if (!res.ok) setWaError(data.error ?? 'Could not send code')
+  }
+
+  async function verifyNumber(e: React.SyntheticEvent) {
+    e.preventDefault(); setWaError(''); setWaWorking(true)
+    const res = await fetch('/api/whatsapp/verify-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: verifyCode }),
+    })
+    const data = await res.json()
+    setWaWorking(false)
+    if (!res.ok) { setWaError(data.error ?? 'Verification failed'); return }
+    // Reload numbers list
+    const nums = await fetch('/api/whatsapp/numbers').then(r => r.json())
+    setWaNumbers(Array.isArray(nums) ? nums : [])
+    resetRegForm()
   }
 
   async function setDefaultNumber(id: string, num: WaNumber) {
@@ -220,11 +232,9 @@ export default function SettingsPage() {
     await fetch(`/api/whatsapp/numbers?id=${id}`, { method: 'DELETE' })
     const remaining = waNumbers.filter(n => n.id !== id)
     setWaNumbers(remaining)
-    // If we removed the default, promote the first remaining as default
     if (wasDefault && remaining.length > 0) {
       await setDefaultNumber(remaining[0].id, remaining[0])
     }
-    // If no numbers left, clear profile
     if (remaining.length === 0) {
       await patch({ wa_phone_number_id: null, wa_phone_number: null, wa_display_name: null, wa_verified: false })
     }
@@ -274,141 +284,129 @@ export default function SettingsPage() {
       <Card>
         <CardHeader
           title="WhatsApp Numbers"
-          subtitle="Link your Meta Business WhatsApp numbers. All messages route to your inbox."
+          subtitle="Add your number — we handle Meta registration for you. Just bring your phone."
         />
         <div className="p-6 space-y-4">
 
-          {/* No numbers yet — show prompt */}
-          {waNumbers.length === 0 && !showAddForm && (
-            <div className="rounded-2xl border-2 border-dashed border-[#E5E5EA] px-5 py-6 text-center space-y-3">
-              <p className="text-[#1C1C1E] font-semibold text-sm">No number linked yet</p>
-              <p className="text-[#8E8E93] text-xs leading-relaxed">
-                Link your WhatsApp Business number so incoming messages, leads, and contacts flow into your dashboard.
-              </p>
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="px-5 py-2.5 rounded-2xl text-sm font-bold text-white"
-                style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
-              >
-                Link a Number
-              </button>
-            </div>
-          )}
-
-          {/* Linked numbers list */}
+          {/* Registered numbers list */}
           {waNumbers.length > 0 && (
             <div className="space-y-2">
               {waNumbers.map(num => (
                 <div key={num.id} className="rounded-2xl border border-[#E5E5EA] px-4 py-3 flex items-start gap-3">
                   <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#25D36615' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.99 0C5.366 0 0 5.373 0 12a11.952 11.952 0 001.636 6.062L0 24l6.134-1.612A11.944 11.944 0 0012 24c6.624 0 12-5.373 12-12S18.614 0 11.99 0zM12 22c-1.848 0-3.588-.495-5.09-1.36l-.365-.217-3.779.993.988-3.703-.238-.383A10.005 10.005 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/><path d="M11.99 0C5.366 0 0 5.373 0 12a11.952 11.952 0 001.636 6.062L0 24l6.134-1.612A11.944 11.944 0 0012 24c6.624 0 12-5.373 12-12S18.614 0 11.99 0zM12 22c-1.848 0-3.588-.495-5.09-1.36l-.365-.217-3.779.993.988-3.703-.238-.383A10.005 10.005 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-[#1C1C1E] font-mono">{num.phone_number}</span>
-                      {num.is_default && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#25D36615', color: '#25D366' }}>DEFAULT</span>
-                      )}
+                      {num.is_default && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#25D36615', color: '#25D366' }}>DEFAULT</span>}
+                      {!num.verified && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#FF950015', color: '#FF9500' }}>UNVERIFIED</span>}
                     </div>
                     {num.display_name && <p className="text-xs text-[#8E8E93] mt-0.5">{num.display_name}</p>}
-                    <p className="text-[10px] text-[#C7C7CC] font-mono mt-0.5 truncate">ID: {num.phone_number_id}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                     {!num.is_default && (
-                      <button
-                        onClick={() => setDefaultNumber(num.id, num)}
-                        className="text-[11px] font-semibold text-[#007AFF] hover:opacity-70 transition-opacity whitespace-nowrap"
-                      >
+                      <button onClick={() => setDefaultNumber(num.id, num)} className="text-[11px] font-semibold text-[#007AFF] hover:opacity-70 transition-opacity whitespace-nowrap">
                         Set default
                       </button>
                     )}
-                    <button
-                      onClick={() => removeNumber(num.id, num.is_default)}
-                      className="text-[11px] font-semibold text-[#FF3B30] hover:opacity-70 transition-opacity"
-                    >
+                    <button onClick={() => removeNumber(num.id, num.is_default)} className="text-[11px] font-semibold text-[#FF3B30] hover:opacity-70 transition-opacity">
                       Remove
                     </button>
                   </div>
                 </div>
               ))}
-              {!showAddForm && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="w-full py-2.5 rounded-2xl text-sm font-semibold border border-dashed border-[#25D366] text-[#25D366] hover:bg-[#25D36608] transition-colors"
-                >
-                  + Add another number
-                </button>
-              )}
             </div>
           )}
 
-          {/* Add number form */}
-          {showAddForm && (
-            <form onSubmit={addNumber} className="space-y-4 pt-2 border-t border-[#F2F2F7]">
-              <p className="text-[#1C1C1E] font-semibold text-sm">Link a WhatsApp number</p>
-              <Field
-                label="Phone Number"
-                hint="Include country code, e.g. +2348104611794"
+          {/* Step 1: Register form */}
+          {waStep === 'idle' && !showRegForm && (
+            <div className={`rounded-2xl border-2 border-dashed border-[#E5E5EA] px-5 py-6 text-center space-y-3 ${waNumbers.length > 0 ? '' : ''}`}>
+              {waNumbers.length === 0 && <p className="text-[#1C1C1E] font-semibold text-sm">No number added yet</p>}
+              {waNumbers.length === 0 && <p className="text-[#8E8E93] text-xs leading-relaxed">Add your WhatsApp number — we register it on Meta for you. You&apos;ll get a code on your phone to confirm.</p>}
+              <button
+                onClick={() => setShowRegForm(true)}
+                className="px-5 py-2.5 rounded-2xl text-sm font-bold text-white"
+                style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
               >
-                <TextInput
-                  value={newPhone}
-                  onChange={e => setNewPhone(e.target.value)}
-                  placeholder="+2348104611794"
-                />
+                {waNumbers.length > 0 ? '+ Add another number' : 'Add a Number'}
+              </button>
+            </div>
+          )}
+
+          {waStep === 'idle' && showRegForm && (
+            <form onSubmit={registerNumber} className="space-y-4 border-t border-[#F2F2F7] pt-4">
+              <p className="text-[#1C1C1E] font-semibold text-sm">Register your WhatsApp number</p>
+              <div className="flex gap-3">
+                <div className="w-24">
+                  <Field label="Country Code" hint="Digits only">
+                    <TextInput value={regCc} onChange={e => setRegCc(e.target.value.replace(/\D/g, ''))} placeholder="234" maxLength={4} />
+                  </Field>
+                </div>
+                <div className="flex-1">
+                  <Field label="Phone Number" hint="Without country code">
+                    <TextInput value={regPhone} onChange={e => setRegPhone(e.target.value.replace(/\D/g, ''))} placeholder="8104611794" />
+                  </Field>
+                </div>
+              </div>
+              <Field label="Display Name" hint="Shown to people you message on WhatsApp">
+                <TextInput value={regName} onChange={e => setRegName(e.target.value)} placeholder="Fast Buy & Sell" />
               </Field>
-              <Field
-                label="Phone Number ID"
-                hint="Meta Business Manager → WhatsApp → Phone Numbers → copy the numeric ID"
-              >
-                <TextInput
-                  value={newPhoneId}
-                  onChange={e => setNewPhoneId(e.target.value)}
-                  placeholder="1151743088022928"
-                />
+              <Field label="2FA PIN" hint="Set a 6-digit PIN — WhatsApp requires this for registration">
+                <TextInput type="password" value={regPin} onChange={e => setRegPin(e.target.value.replace(/\D/g, ''))} placeholder="••••••" maxLength={6} />
               </Field>
-              <Field label="Display Name" hint="Optional — shown in your inbox header">
-                <TextInput
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  placeholder="Fast Buy & Sell"
-                />
-              </Field>
-              {waNumbers.length > 0 && (
-                <label className="flex items-center gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newDefault}
-                    onChange={e => setNewDefault(e.target.checked)}
-                    className="w-4 h-4 rounded accent-[#25D366]"
-                  />
-                  <span className="text-sm text-[#3C3C43]">Set as default sending number</span>
-                </label>
-              )}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#8E8E93]">Send code via</span>
+                {(['SMS', 'VOICE'] as const).map(m => (
+                  <button key={m} type="button" onClick={() => setRegCodeMethod(m)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all"
+                    style={regCodeMethod === m
+                      ? { background: '#25D36612', color: '#25D366', borderColor: '#25D36630' }
+                      : { background: 'transparent', color: '#8E8E93', borderColor: '#E5E5EA' }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
               {waError && <p className="text-[#FF3B30] text-xs">{waError}</p>}
               <div className="flex gap-3">
-                <button
-                  type="submit"
-                  disabled={waWorking || !newPhone.trim() || !newPhoneId.trim()}
+                <button type="submit" disabled={waWorking || !regCc || !regPhone || !regName || regPin.length < 6}
                   className="flex-1 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
-                  style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
-                >
-                  {waWorking ? 'Linking…' : 'Link Number'}
+                  style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}>
+                  {waWorking ? 'Registering…' : 'Register & Send Code'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowAddForm(false); setWaError('') }}
-                  className="px-5 py-3 rounded-2xl text-sm font-semibold text-[#8E8E93] bg-[#F2F2F7] hover:bg-[#E5E5EA] transition-colors"
-                >
+                <button type="button" onClick={resetRegForm}
+                  className="px-5 py-3 rounded-2xl text-sm font-semibold text-[#8E8E93] bg-[#F2F2F7] hover:bg-[#E5E5EA] transition-colors">
                   Cancel
                 </button>
               </div>
-              <div className="rounded-2xl bg-[#F2F2F7] px-4 py-3 text-xs text-[#8E8E93] leading-relaxed space-y-1">
-                <p className="font-semibold text-[#3C3C43]">Where to find your Phone Number ID</p>
-                <ol className="ml-3 list-decimal space-y-0.5">
-                  <li>Open Meta Business Manager</li>
-                  <li>Go to WhatsApp → Phone Numbers</li>
-                  <li>Click your number — copy the numeric ID shown (not the phone number itself)</li>
-                </ol>
+            </form>
+          )}
+
+          {/* Step 2: Verify code */}
+          {waStep === 'awaiting_code' && (
+            <form onSubmit={verifyNumber} className="space-y-4 border-t border-[#F2F2F7] pt-4">
+              <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: '#007AFF10', border: '1px solid #007AFF20' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.5 19.79 19.79 0 01.14 2.18 2 2 0 012.18 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.29 6.29l1.28-1.28a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+                <p className="text-sm text-[#007AFF]">Code sent to <span className="font-bold font-mono">+{regCc}{regPhone}</span> via {regCodeMethod}</p>
+              </div>
+              <Field label="Verification Code" hint="Enter the 6-digit code you received">
+                <TextInput value={verifyCode} onChange={e => setVerifyCode(e.target.value.replace(/\D/g, ''))} placeholder="123456" maxLength={6} />
+              </Field>
+              {waError && <p className="text-[#FF3B30] text-xs">{waError}</p>}
+              <div className="flex items-center gap-3">
+                <button type="submit" disabled={waWorking || verifyCode.length < 6}
+                  className="flex-1 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+                  style={{ background: '#25D366' }}>
+                  {waWorking ? 'Verifying…' : 'Verify Number'}
+                </button>
+                <button type="button" onClick={requestCode} disabled={waWorking}
+                  className="px-4 py-3 rounded-2xl text-sm font-semibold text-[#8E8E93] bg-[#F2F2F7] hover:bg-[#E5E5EA] transition-colors disabled:opacity-50">
+                  Resend
+                </button>
+                <button type="button" onClick={resetRegForm}
+                  className="text-xs text-[#FF3B30] hover:opacity-70 transition-opacity">
+                  Cancel
+                </button>
               </div>
             </form>
           )}

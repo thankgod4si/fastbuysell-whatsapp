@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
+import { getTokenForPhoneNumberId } from '@/lib/meta-app'
 
 const BASE = 'https://graph.facebook.com/v21.0'
-const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
 
 export async function POST(request: Request) {
   const authClient = await createSupabaseServerClient()
@@ -23,9 +23,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No phone number registered yet' }, { status: 400 })
   }
 
+  const token = await getTokenForPhoneNumberId(profile.wa_phone_number_id)
+
   const res = await fetch(`${BASE}/${profile.wa_phone_number_id}/verify_code`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ code }),
   })
 
@@ -35,10 +37,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: data.error.message }, { status: 400 })
   }
 
-  await supabase
-    .from('profiles')
-    .update({ wa_verified: true, updated_at: new Date().toISOString() })
-    .eq('id', user.id)
+  // Mark verified in both tables
+  await Promise.all([
+    supabase.from('profiles')
+      .update({ wa_verified: true })
+      .eq('id', user.id),
+    supabase.from('wa_numbers')
+      .update({ verified: true, is_default: true })
+      .eq('phone_number_id', profile.wa_phone_number_id)
+      .eq('user_id', user.id),
+  ])
 
   return NextResponse.json({ success: true })
 }

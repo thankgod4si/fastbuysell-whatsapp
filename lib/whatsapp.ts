@@ -4,34 +4,34 @@ const TOKEN    = process.env.WHATSAPP_ACCESS_TOKEN!
 const WABA_ID  = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID!
 const FLOW_ID  = process.env.WHATSAPP_FLOW_ID!
 
-async function post(payload: object, phoneNumberId?: string) {
+async function post(payload: object, phoneNumberId?: string, token?: string) {
   const pid = phoneNumberId || PHONE_ID
+  const tok = token || TOKEN
   const res = await fetch(`${BASE}/${pid}/messages`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   return res.json()
 }
 
-// Send any approved Meta template by name
 export async function sendTemplate(
   to: string,
   templateName: string,
   languageCode = 'en_US',
   components: object[] = [],
-  phoneNumberId?: string
+  phoneNumberId?: string,
+  token?: string
 ) {
   return post({
     messaging_product: 'whatsapp',
     to,
     type: 'template',
     template: { name: templateName, language: { code: languageCode }, components },
-  }, phoneNumberId)
+  }, phoneNumberId, token)
 }
 
-// Legacy default template (still used as fallback)
-export async function sendInquiryTemplate(to: string, phoneNumberId?: string) {
+export async function sendInquiryTemplate(to: string, phoneNumberId?: string, token?: string) {
   return sendTemplate(
     to,
     'car_seller_inquiry',
@@ -40,7 +40,8 @@ export async function sendInquiryTemplate(to: string, phoneNumberId?: string) {
       { type: 'button', sub_type: 'flow',        index: '0' },
       { type: 'button', sub_type: 'quick_reply', index: '1', parameters: [{ type: 'payload', payload: 'OPT_OUT' }] },
     ],
-    phoneNumberId
+    phoneNumberId,
+    token
   )
 }
 
@@ -52,7 +53,8 @@ export async function sendFlowMessage(
     screen?: string
     ctaText?: string
     bodyText?: string
-  }
+  },
+  token?: string
 ) {
   const flowId = opts?.metaFlowId || FLOW_ID
   const screen = opts?.screen || 'CONTACT_DETAILS'
@@ -79,14 +81,13 @@ export async function sendFlowMessage(
         },
       },
     },
-  }, phoneNumberId)
+  }, phoneNumberId, token)
 }
 
-export async function sendTextMessage(to: string, text: string, phoneNumberId?: string) {
-  return post({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }, phoneNumberId)
+export async function sendTextMessage(to: string, text: string, phoneNumberId?: string, token?: string) {
+  return post({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }, phoneNumberId, token)
 }
 
-// Submit a new template to Meta for approval
 export async function submitTemplateToMeta(params: {
   name: string
   category: string
@@ -94,9 +95,8 @@ export async function submitTemplateToMeta(params: {
   headerText?: string
   body: string
   footerText?: string
-}) {
+}, wabaId?: string, token?: string) {
   const components: object[] = []
-
   if (params.headerText) {
     components.push({ type: 'HEADER', format: 'TEXT', text: params.headerText })
   }
@@ -105,9 +105,12 @@ export async function submitTemplateToMeta(params: {
     components.push({ type: 'FOOTER', text: params.footerText })
   }
 
-  const res = await fetch(`${BASE}/${WABA_ID}/message_templates`, {
+  const wid = wabaId || WABA_ID
+  const tok = token || TOKEN
+
+  const res = await fetch(`${BASE}/${wid}/message_templates`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: params.name,
       language: params.language,
@@ -118,11 +121,12 @@ export async function submitTemplateToMeta(params: {
   return res.json()
 }
 
-// Check current approval status of a template from Meta
-export async function getTemplateStatus(templateName: string) {
+export async function getTemplateStatus(templateName: string, wabaId?: string, token?: string) {
+  const wid = wabaId || WABA_ID
+  const tok = token || TOKEN
   const res = await fetch(
-    `${BASE}/${WABA_ID}/message_templates?name=${templateName}&fields=name,status,rejected_reason`,
-    { headers: { Authorization: `Bearer ${TOKEN}` } }
+    `${BASE}/${wid}/message_templates?name=${templateName}&fields=name,status,rejected_reason`,
+    { headers: { Authorization: `Bearer ${tok}` } }
   )
   const data = await res.json()
   return data.data?.[0] ?? null
