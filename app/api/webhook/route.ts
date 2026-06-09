@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendFlowMessage, sendTextMessage } from '@/lib/whatsapp'
-import { updateMessageStatus } from '@/lib/message-log'
+import { sendFlowMessage } from '@/lib/whatsapp'
+import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const mode = searchParams.get('hub.mode')
-  const token = searchParams.get('hub.verify_token')
+  const mode      = searchParams.get('hub.mode')
+  const token     = searchParams.get('hub.verify_token')
   const challenge = searchParams.get('hub.challenge')
 
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
@@ -25,10 +25,7 @@ export async function POST(request: Request) {
 
     // ── Delivery status updates ──────────────────────────────────────────────
     const statuses = value?.statuses as Array<{
-      id: string
-      status: string
-      timestamp: string
-      errors?: Array<{ message: string }>
+      id: string; status: string; timestamp: string; errors?: Array<{ message: string }>
     }> | undefined
 
     if (statuses?.length) {
@@ -49,6 +46,9 @@ export async function POST(request: Request) {
     const from: string = message.from
     const businessPhoneNumberId: string | undefined = value?.metadata?.phone_number_id
 
+    // WhatsApp sends contact profile info alongside messages — capture the display name
+    const waName: string | null = value?.contacts?.[0]?.profile?.name ?? null
+
     let userId: string | null = null
     if (businessPhoneNumberId) {
       const { data: profile } = await supabase
@@ -58,6 +58,21 @@ export async function POST(request: Request) {
         .single()
       userId = profile?.id ?? null
     }
+
+    // Upsert contact with their WhatsApp profile name
+    if (userId) {
+      await supabase.from('contacts')
+        .upsert(
+          { phone: from, user_id: userId, ...(waName ? { wa_name: waName } : {}) },
+          { onConflict: 'phone,user_id', ignoreDuplicates: false }
+        )
+        .eq('user_id', userId)
+    }
+
+    // Look up contact record for conversation threading
+    const cqBase = supabase.from('contacts').select('id, status').eq('phone', from)
+    if (userId) cqBase.eq('user_id', userId)
+    const { data: contactRecord } = await cqBase.maybeSingle()
 
     // Shared helper — look up user's latest published flow
     async function resolveFlowOpts() {
@@ -80,6 +95,13 @@ export async function POST(request: Request) {
       const payload: string = message.button?.payload ?? ''
 
       if (payload === 'INTERESTED') {
+        await saveInboundMessage({
+          contactId: contactRecord?.id,
+          phone: from,
+          content: 'Tapped: Interested',
+          msgType: 'button_reply',
+          userId,
+        })
         await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
         const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
@@ -87,38 +109,63 @@ export async function POST(request: Request) {
       }
 
       if (payload === 'OPT_OUT') {
+        await saveInboundMessage({
+          contactId: contactRecord?.id,
+          phone: from,
+          content: 'Opted out',
+          msgType: 'button_reply',
+          userId,
+        })
         const q = supabase.from('contacts').update({ status: 'blacklisted' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
         await q
       }
     }
 
-    // Text reply — if contact is in 'sent/delivered/read' state, send them the flow
+    // Text reply — send the flow message so they can tap it in place
     if (message.type === 'text') {
-      const cq = supabase.from('contacts').select('id, status').eq('phone', from)
-      if (userId) cq.eq('user_id', userId)
-      const { data: contact } = await cq.maybeSingle()
+      const text: string = message.text?.body ?? ''
 
-      if (contact && ['sent', 'delivered', 'read'].includes(contact.status)) {
+      await saveInboundMessage({
+        contactId: contactRecord?.id,
+        phone: from,
+        content: text,
+        msgType: 'text',
+        userId,
+      })
+
+      if (contactRecord && ['sent', 'delivered', 'read'].includes(contactRecord.status)) {
         await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
-        await supabase.from('contacts').update({ status: 'replied' }).eq('id', contact.id)
+        await supabase.from('contacts').update({ status: 'replied' }).eq('id', contactRecord.id)
       }
     }
 
     if (message.type === 'interactive' && message.interactive?.type === 'nfm_reply') {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
-
-      // flow_db_id embedded in footer payload lets us reliably attribute the lead
       const resolvedUserId: string | null = flowData.user_id ?? userId
 
       const contactQuery = supabase.from('contacts').select('id').eq('phone', from)
       if (resolvedUserId) contactQuery.eq('user_id', resolvedUserId)
       const { data: contact } = await contactQuery.maybeSingle()
 
+      // Save as conversation message
+      const formSummary = [
+        flowData.full_name,
+        flowData.product_service ?? flowData.car_make,
+        flowData.budget ?? flowData.asking_price,
+      ].filter(Boolean).join(' · ')
+
+      await saveInboundMessage({
+        contactId: contact?.id,
+        phone: from,
+        content: `Form submitted: ${formSummary || 'Details received'}`,
+        msgType: 'form_submission',
+        userId: resolvedUserId,
+      })
+
       await supabase.from('leads').insert({
         contact_id:      contact?.id          ?? null,
         phone:           from,
-        // common fields
         full_name:       flowData.full_name       ?? null,
         email:           flowData.email           ?? null,
         phone_number:    flowData.phone_number     ?? null,
@@ -128,7 +175,6 @@ export async function POST(request: Request) {
         location:        flowData.location         ?? null,
         timeline:        flowData.timeline         ?? null,
         notes:           flowData.notes            ?? null,
-        // legacy car fields (still captured if flow uses them)
         car_make:        flowData.car_make         ?? null,
         car_model:       flowData.car_model        ?? null,
         car_year:        flowData.car_year         ?? null,
@@ -136,11 +182,10 @@ export async function POST(request: Request) {
         asking_price:    flowData.asking_price     ?? null,
         previous_owners: flowData.previous_owners  ?? null,
         condition:       flowData.condition        ?? null,
-        // full raw response for any custom fields
         response_data:   flowData,
-        status: 'new',
-        source: 'whatsapp',
-        user_id: resolvedUserId,
+        status:          'new',
+        source:          'whatsapp',
+        user_id:         resolvedUserId,
       })
     }
   } catch (err) {

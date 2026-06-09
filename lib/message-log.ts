@@ -22,6 +22,26 @@ export async function createMessageLog(params: {
   })
 }
 
+export async function saveInboundMessage(params: {
+  contactId?: string | null
+  phone: string
+  content: string
+  msgType: 'text' | 'button_reply' | 'form_submission'
+  userId?: string | null
+}) {
+  await supabase.from('message_logs').insert({
+    contact_id:  params.contactId ?? null,
+    channel:     'whatsapp',
+    recipient:   params.phone,
+    direction:   'inbound',
+    content:     params.content,
+    msg_type:    params.msgType,
+    status:      'read',
+    sent_at:     new Date().toISOString(),
+    user_id:     params.userId ?? null,
+  })
+}
+
 export async function updateMessageStatus(
   externalId: string,
   status: MessageStatus,
