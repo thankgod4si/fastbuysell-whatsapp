@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
 const PACKS = [
-  { id: 'starter', credits: 200,    price: 2_500,  label: 'Starter', color: '#007AFF', per: 12.5 },
-  { id: 'growth',  credits: 1_000,  price: 10_000, label: 'Growth',  color: '#5856D6', per: 10, popular: true },
-  { id: 'pro',     credits: 5_000,  price: 40_000, label: 'Pro',     color: '#FF9500', per: 8 },
-  { id: 'scale',   credits: 10_000, price: 70_000, label: 'Scale',   color: '#34C759', per: 7 },
+  { id: 'starter', credits: 200,    price: 22_000,   label: 'Starter', color: '#007AFF', per: 110 },
+  { id: 'growth',  credits: 1_000,  price: 100_000,  label: 'Growth',  color: '#5856D6', per: 100, popular: true },
+  { id: 'pro',     credits: 5_000,  price: 475_000,  label: 'Pro',     color: '#FF9500', per: 95 },
+  { id: 'scale',   credits: 10_000, price: 900_000,  label: 'Scale',   color: '#34C759', per: 90 },
 ]
 
 interface Profile {
@@ -159,7 +159,7 @@ export default function BillingPage() {
           <span className="text-5xl font-black tabular-nums">{fmt(credits)}</span>
           <span className="text-white/60 text-sm">credits</span>
         </div>
-        <p className="text-white/60 text-sm">≈ ₦{fmt(credits * 10)} messaging value</p>
+        <p className="text-white/60 text-sm">≈ ₦{fmt(credits * 100)} messaging value</p>
         <div className="mt-4 flex items-center gap-3">
           <div className="bg-white/15 rounded-2xl px-4 py-2 text-center">
             <p className="text-[11px] text-white/60 mb-0.5">Total Sent</p>
@@ -167,7 +167,7 @@ export default function BillingPage() {
           </div>
           <div className="bg-white/15 rounded-2xl px-4 py-2 text-center">
             <p className="text-[11px] text-white/60 mb-0.5">Rate</p>
-            <p className="font-black text-lg">₦10–15<span className="text-sm font-normal">/msg</span></p>
+            <p className="font-black text-lg">₦90–110<span className="text-sm font-normal">/msg</span></p>
           </div>
         </div>
       </div>
@@ -303,36 +303,52 @@ export default function BillingPage() {
       {/* Contact admin */}
       <div className="bg-white rounded-3xl p-5 space-y-3" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
         <p className="font-bold text-[#1C1C1E] text-sm">Need Help? Message Admin Directly</p>
-        <p className="text-[#8E8E93] text-xs">After payment, message us with your receipt for faster processing.</p>
+        <p className="text-[#8E8E93] text-xs">After payment, send your receipt directly — we&apos;ll activate your credits fast.</p>
         <div className="flex gap-3">
-          {ADMIN_WA && (
-            <a href={`https://wa.me/${ADMIN_WA.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I just made a payment for credits on FastBuySell. My email: ${userEmail}`)}`}
+          {ADMIN_WA ? (
+            <a href={`https://wa.me/${ADMIN_WA.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi, I just paid for credits on OutreachHQ. My email: ${userEmail}`)}`}
               target="_blank" rel="noreferrer"
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white transition-opacity hover:opacity-90"
               style={{ background: '#25D366' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51C9.745 5.014 9.497 5.012 9.3 5.012c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/>
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/>
                 <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.102 1.523 5.828L.057 23.428a.5.5 0 0 0 .614.614l5.6-1.466A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.697 9.697 0 0 1-4.962-1.363l-.356-.214-3.684.965.982-3.583-.233-.372A9.699 9.699 0 0 1 2.25 12C2.25 6.624 6.623 2.25 12 2.25c5.376 0 9.75 4.374 9.75 9.75S17.376 21.75 12 21.75z"/>
               </svg>
-              WhatsApp Admin
+              Chat on WhatsApp
             </a>
+          ) : (
+            <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white opacity-50 cursor-not-allowed"
+              style={{ background: '#25D366' }} title="WhatsApp contact not configured yet">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/>
+                <path d="M12 0C5.373 0 0 5.373 0 12c0 2.117.554 4.102 1.523 5.828L.057 23.428a.5.5 0 0 0 .614.614l5.6-1.466A11.945 11.945 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.697 9.697 0 0 1-4.962-1.363l-.356-.214-3.684.965.982-3.583-.233-.372A9.699 9.699 0 0 1 2.25 12C2.25 6.624 6.623 2.25 12 2.25c5.376 0 9.75 4.374 9.75 9.75S17.376 21.75 12 21.75z"/>
+              </svg>
+              Chat on WhatsApp
+            </div>
           )}
-          {ADMIN_TG && (
-            <a href={`https://t.me/${ADMIN_TG}`} target="_blank" rel="noreferrer"
+          {ADMIN_TG ? (
+            <a href={ADMIN_TG.startsWith('http') ? ADMIN_TG : `https://t.me/${ADMIN_TG}`}
+              target="_blank" rel="noreferrer"
               className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white transition-opacity hover:opacity-90"
               style={{ background: '#229ED9' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
               </svg>
-              Telegram Admin
+              Chat on Telegram
             </a>
-          )}
-          {!ADMIN_WA && !ADMIN_TG && (
-            <div className="flex-1 rounded-2xl bg-[#F2F2F7] px-4 py-3 text-xs text-[#8E8E93] text-center">
-              Contact admin to activate credits after payment
+          ) : (
+            <div className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold text-white opacity-50 cursor-not-allowed"
+              style={{ background: '#229ED9' }} title="Telegram contact not configured yet">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+              </svg>
+              Chat on Telegram
             </div>
           )}
         </div>
+        {(!ADMIN_WA || !ADMIN_TG) && (
+          <p className="text-[#C7C7CC] text-[11px] text-center">Admin contact links will be active soon</p>
+        )}
       </div>
 
       {/* Transaction history */}
