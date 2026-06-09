@@ -69,50 +69,70 @@ const FLOW_STATUS_META: Record<FlowStatus, { label: string; color: string; bg: s
 }
 
 const AVAILABLE_FIELDS: FlowField[] = [
-  { key: 'full_name',       label: 'Full Name',        type: 'text',     required: true  },
-  { key: 'email',           label: 'Email Address',    type: 'email',    required: false },
-  { key: 'car_make',        label: 'Car Make',         type: 'text',     required: false },
-  { key: 'car_model',       label: 'Car Model',        type: 'text',     required: false },
-  { key: 'car_year',        label: 'Year',             type: 'number',   required: false },
-  { key: 'mileage',         label: 'Mileage (km)',     type: 'number',   required: false },
-  { key: 'asking_price',    label: 'Asking Price',     type: 'number',   required: false },
-  { key: 'condition',       label: 'Condition',        type: 'dropdown', required: false, options: ['Excellent','Good','Fair','Poor','For Parts'] },
-  { key: 'previous_owners', label: 'Previous Owners',  type: 'number',   required: false },
-  { key: 'notes',           label: 'Additional Notes', type: 'textarea', required: false },
+  { key: 'full_name',       label: 'Full Name',          type: 'text',     required: true  },
+  { key: 'email',           label: 'Email Address',      type: 'email',    required: false },
+  { key: 'phone_number',    label: 'Phone Number',       type: 'text',     required: false },
+  { key: 'company',         label: 'Company / Business', type: 'text',     required: false },
+  { key: 'product_service', label: 'Product or Service', type: 'text',     required: false },
+  { key: 'budget',          label: 'Budget',             type: 'number',   required: false },
+  { key: 'location',        label: 'Location / City',    type: 'text',     required: false },
+  { key: 'timeline',        label: 'Timeline',           type: 'dropdown', required: false, options: ['ASAP','1–3 months','3–6 months','6+ months','Just exploring'] },
+  { key: 'notes',           label: 'Additional Notes',   type: 'textarea', required: false },
 ]
 
 const DEFAULT_TEMPLATES: Record<Channel, { name: string; body: string; subject?: string; header_text?: string; footer_text?: string }[]> = {
   whatsapp: [
     {
-      name: 'Car Buyer Inquiry',
-      body: 'Hi, we are Fast Buy & Sell – we purchase used cars across Europe. Are you interested in a quick, fair offer for your vehicle? Reply YES and we will be in touch within 24 hours. Reply STOP to opt out.',
-      footer_text: 'Fast Buy & Sell – Quick car valuations',
+      name: 'Customer Outreach',
+      body: 'Hi {{name}}, I\'m reaching out from {{company}} about {{offer}}. If you\'re interested in learning more, tap the button below or reply YES. Reply STOP to opt out.',
+      footer_text: 'Reply STOP to unsubscribe',
     },
     {
       name: 'Follow-Up',
-      body: 'Hello, we recently reached out about buying your car. We are still interested and can offer a fast, hassle-free purchase. Reply YES to proceed or STOP to opt out.',
+      body: 'Hi {{name}}, I wanted to follow up on my earlier message. We\'d love to connect when you\'re ready. Reply YES to continue or STOP to opt out.',
+    },
+    {
+      name: 'Appointment Reminder',
+      body: 'Hi {{name}}, this is a reminder about your upcoming appointment with {{company}}. Please reply YES to confirm or call us to reschedule.',
     },
   ],
   email: [
     {
-      name: 'Car Purchase Inquiry',
-      subject: 'We\'re interested in buying your car',
+      name: 'Introduction',
+      subject: 'Quick intro from {{sender}}',
       body: `Hello {{name}},
 
-We came across your listing for the {{car}} and would love to arrange a viewing.
+I wanted to reach out personally to introduce myself and let you know about {{offer}}.
 
-We offer fast, transparent purchases with same-day payment. No dealers, no waiting.
+We work with clients like you to {{benefit}}. The process is straightforward and I'd love to explain how it works.
 
-Would you be available for a call this week?
+Would you be open to a quick 10-minute call this week?
 
 Best regards,
-The Fast Buy & Sell Team`,
+{{sender}}`,
+    },
+    {
+      name: 'Follow-Up',
+      subject: 'Following up — {{company}}',
+      body: `Hi {{name}},
+
+I sent you a message last week and wanted to follow up in case it got buried.
+
+{{message}}
+
+Happy to answer any questions — just hit reply.
+
+{{sender}}`,
     },
   ],
   sms: [
     {
-      name: 'Car Buyer Outreach',
-      body: 'Hi, this is Fast Buy & Sell – we buy used cars across Europe. Want a quick offer on your vehicle? Reply YES and we\'ll be in touch. Reply STOP to opt out.',
+      name: 'Quick Outreach',
+      body: 'Hi {{name}}, this is {{sender}} from {{company}}. {{offer}} — interested? Reply YES or STOP to opt out.',
+    },
+    {
+      name: 'Appointment Reminder',
+      body: 'Reminder: your appointment with {{company}} is on {{date}}. Reply CONFIRM or call us to reschedule.',
     },
   ],
 }
@@ -140,7 +160,7 @@ function CreateModal({ channel, onClose, onCreated }: { channel: Channel; onClos
     if (ex.footer_text)  setFooterText(ex.footer_text)
   }
 
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
+  async function submit(e: { preventDefault(): void }) {
     e.preventDefault()
     setError('')
     setSaving(true)
@@ -298,7 +318,7 @@ function TemplateCard({ tpl, onDelete, onSetDefault, onSubmit, onRefreshStatus }
 
   async function handleSubmit() {
     setSubmitting(true)
-    await onSubmit(tpl.id)
+    onSubmit(tpl.id)
     setSubmitting(false)
   }
 

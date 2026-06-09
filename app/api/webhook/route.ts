@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { sendFlowMessage } from '@/lib/whatsapp'
+import { sendFlowMessage, sendTextMessage } from '@/lib/whatsapp'
 import { updateMessageStatus } from '@/lib/message-log'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
@@ -59,26 +59,28 @@ export async function POST(request: Request) {
       userId = profile?.id ?? null
     }
 
+    // Shared helper — look up user's latest published flow
+    async function resolveFlowOpts() {
+      if (!userId) return undefined
+      const { data: uf } = await supabase
+        .from('flows')
+        .select('meta_flow_id, cta_text')
+        .eq('user_id', userId)
+        .eq('meta_status', 'published')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (uf?.meta_flow_id) {
+        return { metaFlowId: uf.meta_flow_id, screen: 'LEAD_FORM', ctaText: uf.cta_text } as Parameters<typeof sendFlowMessage>[2]
+      }
+      return undefined
+    }
+
     if (message.type === 'button') {
       const payload: string = message.button?.payload ?? ''
 
       if (payload === 'INTERESTED') {
-        // Prefer user's own published flow; fall back to platform flow
-        let flowOpts: Parameters<typeof sendFlowMessage>[2]
-        if (userId) {
-          const { data: uf } = await supabase
-            .from('flows')
-            .select('meta_flow_id, cta_text, screen_title')
-            .eq('user_id', userId)
-            .eq('meta_status', 'published')
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single()
-          if (uf?.meta_flow_id) {
-            flowOpts = { metaFlowId: uf.meta_flow_id, screen: 'LEAD_FORM', ctaText: uf.cta_text }
-          }
-        }
-        await sendFlowMessage(from, businessPhoneNumberId, flowOpts)
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
         const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
         await q
@@ -88,6 +90,18 @@ export async function POST(request: Request) {
         const q = supabase.from('contacts').update({ status: 'blacklisted' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
         await q
+      }
+    }
+
+    // Text reply — if contact is in 'sent/delivered/read' state, send them the flow
+    if (message.type === 'text') {
+      const cq = supabase.from('contacts').select('id, status').eq('phone', from)
+      if (userId) cq.eq('user_id', userId)
+      const { data: contact } = await cq.maybeSingle()
+
+      if (contact && ['sent', 'delivered', 'read'].includes(contact.status)) {
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
+        await supabase.from('contacts').update({ status: 'replied' }).eq('id', contact.id)
       }
     }
 
@@ -102,18 +116,28 @@ export async function POST(request: Request) {
       const { data: contact } = await contactQuery.maybeSingle()
 
       await supabase.from('leads').insert({
-        contact_id: contact?.id ?? null,
-        phone: from,
+        contact_id:      contact?.id          ?? null,
+        phone:           from,
+        // common fields
         full_name:       flowData.full_name       ?? null,
         email:           flowData.email           ?? null,
-        car_make:        flowData.car_make        ?? null,
-        car_model:       flowData.car_model       ?? null,
-        car_year:        flowData.car_year        ?? null,
-        mileage:         flowData.mileage         ?? null,
-        asking_price:    flowData.asking_price    ?? null,
-        previous_owners: flowData.previous_owners ?? null,
-        condition:       flowData.condition       ?? null,
-        notes:           flowData.notes           ?? null,
+        phone_number:    flowData.phone_number     ?? null,
+        company:         flowData.company          ?? null,
+        product_service: flowData.product_service  ?? null,
+        budget:          flowData.budget           ?? null,
+        location:        flowData.location         ?? null,
+        timeline:        flowData.timeline         ?? null,
+        notes:           flowData.notes            ?? null,
+        // legacy car fields (still captured if flow uses them)
+        car_make:        flowData.car_make         ?? null,
+        car_model:       flowData.car_model        ?? null,
+        car_year:        flowData.car_year         ?? null,
+        mileage:         flowData.mileage          ?? null,
+        asking_price:    flowData.asking_price     ?? null,
+        previous_owners: flowData.previous_owners  ?? null,
+        condition:       flowData.condition        ?? null,
+        // full raw response for any custom fields
+        response_data:   flowData,
         status: 'new',
         source: 'whatsapp',
         user_id: resolvedUserId,

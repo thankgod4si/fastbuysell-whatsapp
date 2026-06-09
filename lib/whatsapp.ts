@@ -82,6 +82,10 @@ export async function sendFlowMessage(
   }, phoneNumberId)
 }
 
+export async function sendTextMessage(to: string, text: string, phoneNumberId?: string) {
+  return post({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }, phoneNumberId)
+}
+
 // Submit a new template to Meta for approval
 export async function submitTemplateToMeta(params: {
   name: string

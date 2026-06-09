@@ -105,16 +105,74 @@ function ActivityRow({ log }: {
 }
 
 // ---------------------------------------------------------------------------
+// Onboarding checklist
+// ---------------------------------------------------------------------------
+
+interface SetupStep { key: string; label: string; sub: string; href: string; done: boolean }
+
+function OnboardingCard({ steps }: { steps: SetupStep[] }) {
+  const [dismissed, setDismissed] = useState(false)
+  const done = steps.filter(s => s.done).length
+  const total = steps.length
+
+  if (dismissed || done === total) return null
+
+  return (
+    <div className="rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg,#F8F8FF,#EEF2FF)', boxShadow: '0 2px 12px rgba(88,86,214,0.12)' }}>
+      <div className="px-6 py-4 flex items-center justify-between border-b border-[#5856D6]/10">
+        <div>
+          <h2 className="text-[#1C1C1E] font-bold text-sm">Get started — {done}/{total} complete</h2>
+          <p className="text-[#8E8E93] text-xs mt-0.5">Finish setup to unlock your first blast</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-32 h-1.5 rounded-full bg-[#5856D6]/15 overflow-hidden">
+            <div className="h-full rounded-full bg-[#5856D6] transition-all" style={{ width: `${(done / total) * 100}%` }} />
+          </div>
+          <button onClick={() => setDismissed(true)} className="text-[#C7C7CC] hover:text-[#8E8E93] text-lg leading-none">×</button>
+        </div>
+      </div>
+      <div className="p-4 grid gap-2 sm:grid-cols-2">
+        {steps.map(s => (
+          <Link key={s.key} href={s.href}
+            className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/70 hover:bg-white transition-all"
+            style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+            <div className="w-7 h-7 rounded-xl flex items-center justify-center shrink-0"
+              style={s.done ? { background: '#34C759', boxShadow: '0 2px 6px rgba(52,199,89,0.3)' } : { background: '#F2F2F7' }}>
+              {s.done
+                ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C7C7CC" strokeWidth="2.5"><path d="M9 18l6-6-6-6"/></svg>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[#1C1C1E] text-xs font-semibold">{s.label}</p>
+              <p className="text-[#8E8E93] text-[11px]">{s.sub}</p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 interface Stats { whatsapp: number; email: number; sms: number; leads: number; delivered: number; read: number }
 
+interface Profile {
+  full_name: string | null
+  wa_verified: boolean | null
+  resend_api_key: string | null
+  brevo_api_key: string | null
+}
+
 export default function DashboardPage() {
-  const [userName, setUserName] = useState('')
-  const [stats,    setStats]    = useState<Stats>({ whatsapp: 0, email: 0, sms: 0, leads: 0, delivered: 0, read: 0 })
-  const [logs,     setLogs]     = useState<{ id: string; channel: string; recipient: string; status: string; sent_at: string }[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const [userName,   setUserName]   = useState('')
+  const [stats,      setStats]      = useState<Stats>({ whatsapp: 0, email: 0, sms: 0, leads: 0, delivered: 0, read: 0 })
+  const [logs,       setLogs]       = useState<{ id: string; channel: string; recipient: string; status: string; sent_at: string }[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [setupSteps, setSetupSteps] = useState<SetupStep[]>([])
 
   useEffect(() => {
     async function load() {
@@ -122,10 +180,37 @@ export default function DashboardPage() {
       if (user) {
         const { data: profile } = await supabaseBrowser
           .from('profiles')
-          .select('full_name')
+          .select('full_name, wa_verified, resend_api_key, brevo_api_key')
           .eq('id', user.id)
-          .single()
+          .single() as { data: Profile | null }
         setUserName(profile?.full_name || user.email?.split('@')[0] || 'there')
+
+        // Check contacts + templates counts for onboarding
+        const [ctRes, tplRes] = await Promise.all([
+          fetch('/api/contacts?limit=1'),
+          fetch('/api/templates'),
+        ])
+        const contacts  = await ctRes.json().then((d: unknown) => Array.isArray(d) ? d : [])
+        const templates = await tplRes.json().then((d: unknown) => Array.isArray(d) ? d : [])
+
+        setSetupSteps([
+          {
+            key: 'whatsapp', label: 'Connect WhatsApp', sub: 'Verify your business number',
+            href: '/settings', done: !!profile?.wa_verified,
+          },
+          {
+            key: 'email', label: 'Set up email sending', sub: 'Add your Resend API key',
+            href: '/settings', done: !!profile?.resend_api_key,
+          },
+          {
+            key: 'template', label: 'Create a template', sub: 'Write your first outreach message',
+            href: '/templates', done: templates.length > 0,
+          },
+          {
+            key: 'contacts', label: 'Import contacts', sub: 'Add people to reach out to',
+            href: '/contacts', done: contacts.length > 0,
+          },
+        ])
       }
 
       const [logsRes, leadsRes] = await Promise.all([fetch('/api/logs'), fetch('/api/leads')])
@@ -177,6 +262,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Onboarding checklist — hidden once all steps complete or dismissed */}
+      {setupSteps.length > 0 && <OnboardingCard steps={setupSteps} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
