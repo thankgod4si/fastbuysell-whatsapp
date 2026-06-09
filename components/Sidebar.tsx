@@ -221,6 +221,16 @@ export default function Sidebar() {
         </Link>
       )}
 
+      {/* Buy Number CTA */}
+      <Link
+        href="/settings#whatsapp"
+        className="mx-3 mt-2 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl transition-opacity hover:opacity-90"
+        style={{ background: 'linear-gradient(135deg,#25D366,#128C7E)', boxShadow: '0 3px 10px rgba(37,211,102,0.25)' }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
+        <span className="text-white text-xs font-bold">Buy WhatsApp Number</span>
+      </Link>
+
       {/* Credits pill */}
       {profile !== null && (
         <Link href="/billing" className="mx-3 mt-2 mb-1 flex items-center justify-between px-3.5 py-2.5 rounded-2xl transition-opacity hover:opacity-80"

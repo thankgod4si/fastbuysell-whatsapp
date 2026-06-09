@@ -13,6 +13,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="flex items-center gap-1 ml-4">
             <Link href="/admin" className="text-sm px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Users</Link>
             <Link href="/admin/payments" className="text-sm px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Payments</Link>
+            <Link href="/admin/numbers" className="text-sm px-3 py-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors">Numbers</Link>
           </div>
         </div>
         <Link href="/contacts" className="text-sm text-gray-500 hover:text-white transition-colors">← Back to app</Link>

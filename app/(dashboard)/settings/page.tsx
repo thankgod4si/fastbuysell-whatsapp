@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Profile {
   full_name: string
@@ -97,6 +97,32 @@ function StatusPill({ status, remaining }: { status: string; remaining: number }
   )
 }
 
+function LiveChatButtons() {
+  const wa = process.env.NEXT_PUBLIC_ADMIN_WA
+  const tg = process.env.NEXT_PUBLIC_ADMIN_TG
+  if (!wa && !tg) return null
+  return (
+    <div className="flex items-center justify-center gap-3 mt-2">
+      {wa && (
+        <a href={`https://wa.me/${wa.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+          className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: '#25D366' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z"/><path d="M11.99 0C5.366 0 0 5.373 0 12a11.952 11.952 0 001.636 6.062L0 24l6.134-1.612A11.944 11.944 0 0012 24c6.624 0 12-5.373 12-12S18.614 0 11.99 0zM12 22c-1.848 0-3.588-.495-5.09-1.36l-.365-.217-3.779.993.988-3.703-.238-.383A10.005 10.005 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+          Chat on WhatsApp
+        </a>
+      )}
+      {tg && (
+        <a href={tg} target="_blank" rel="noreferrer"
+          className="flex items-center gap-2 px-4 py-2 rounded-2xl text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: '#229ED9' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221l-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.196 13.9l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.952.659z"/></svg>
+          Chat on Telegram
+        </a>
+      )}
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -111,6 +137,14 @@ export default function SettingsPage() {
   const [savedEmail,    setSavedEmail]    = useState(false)
   const [savingSms,     setSavingSms]     = useState(false)
   const [savedSms,      setSavedSms]      = useState(false)
+
+  // Buy a number flow
+  const [buyStep,      setBuyStep]      = useState<'idle'|'pay'|'done'>('idle')
+  const [buyReceipt,   setBuyReceipt]   = useState<File | null>(null)
+  const [buyNote,      setBuyNote]      = useState('')
+  const [buyWorking,   setBuyWorking]   = useState(false)
+  const [buyError,     setBuyError]     = useState('')
+  const buyFileRef = useRef<HTMLInputElement>(null)
 
   // WhatsApp numbers
   const [waNumbers,      setWaNumbers]      = useState<WaNumber[]>([])
@@ -252,6 +286,37 @@ export default function SettingsPage() {
     }
   }
 
+  async function submitBuyNumber() {
+    if (!buyReceipt) return
+    setBuyWorking(true); setBuyError('')
+    try {
+      const { supabaseBrowser } = await import('@/lib/supabase-browser')
+      const { data: { user } } = await supabaseBrowser.auth.getUser()
+      if (!user) throw new Error('Not logged in')
+
+      const ext  = buyReceipt.name.split('.').pop()
+      const path = `number-requests/${user.id}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabaseBrowser.storage
+        .from('payment-receipts').upload(path, buyReceipt, { upsert: true })
+      if (upErr) throw new Error(upErr.message)
+
+      const { data: { publicUrl } } = supabaseBrowser.storage
+        .from('payment-receipts').getPublicUrl(path)
+
+      const res = await fetch('/api/billing/number-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ receipt_url: publicUrl, note: buyNote.trim() || null }),
+      })
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error ?? 'Failed') }
+      setBuyStep('done')
+    } catch (e) {
+      setBuyError((e as Error).message)
+    } finally {
+      setBuyWorking(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="max-w-lg space-y-4">
@@ -292,11 +357,12 @@ export default function SettingsPage() {
         </form>
       </Card>
 
-      {/* WhatsApp Numbers */}
+      {/* WhatsApp Numbers — anchor for onboarding link */}
+      <div id="whatsapp" />
       <Card>
         <CardHeader
           title="WhatsApp Numbers"
-          subtitle="Add your number — we handle Meta registration for you. Just bring your phone."
+          subtitle="Buy a managed number or register your own SIM."
         />
         <div className="p-6 space-y-4">
 
@@ -331,17 +397,110 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* ── Buy a Number (managed) ── */}
+          {buyStep === 'idle' && (
+            <div className="rounded-2xl overflow-hidden border border-[#25D366]/25" style={{ background: 'linear-gradient(135deg,#F0FFF4,#DCFCE7)' }}>
+              <div className="px-5 py-4 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: '#25D366' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-[#1C1C1E] text-sm">Buy a WhatsApp Number</p>
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#25D366' }}>₦15,000</span>
+                  </div>
+                  <p className="text-[#3C3C43] text-xs mt-1 leading-relaxed">We buy and register the number on Meta for you — fully managed. You&apos;ll receive your number within a few hours after payment is confirmed.</p>
+                  <ul className="mt-2 space-y-0.5">
+                    {['Virtual number in your preferred country','Registered on WhatsApp Cloud API','Ready to blast immediately','Full support included'].map(f => (
+                      <li key={f} className="flex items-center gap-1.5 text-xs text-[#3C3C43]">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={() => setBuyStep('pay')}
+                    className="mt-3 px-5 py-2 rounded-2xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.3)' }}>
+                    Buy Number — ₦15,000
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Buy: payment step ── */}
+          {buyStep === 'pay' && (
+            <div className="rounded-2xl border-2 border-[#25D366]/30 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-[#1C1C1E] text-sm">Pay ₦15,000 — WhatsApp Number</p>
+                <button onClick={() => { setBuyStep('idle'); setBuyReceipt(null); setBuyNote(''); setBuyError('') }}
+                  className="text-xs text-[#8E8E93] hover:text-[#FF3B30]">Cancel</button>
+              </div>
+              {[
+                { label: 'Bank',           value: process.env.NEXT_PUBLIC_BANK_NAME    ?? 'First Bank' },
+                { label: 'Account Name',   value: process.env.NEXT_PUBLIC_ACCOUNT_NAME ?? 'FastBuySell Ltd' },
+                { label: 'Account Number', value: process.env.NEXT_PUBLIC_ACCOUNT_NO   ?? 'Contact admin' },
+                { label: 'Amount',         value: '₦15,000' },
+              ].map(r => (
+                <div key={r.label} className="flex items-center justify-between bg-[#F2F2F7] rounded-2xl px-4 py-2.5">
+                  <span className="text-[#8E8E93] text-xs">{r.label}</span>
+                  <span className="text-[#1C1C1E] text-sm font-bold font-mono">{r.value}</span>
+                </div>
+              ))}
+              <div>
+                <p className="text-xs font-semibold text-[#8E8E93] mb-2">Upload Payment Receipt</p>
+                <div onClick={() => buyFileRef.current?.click()}
+                  className="border-2 border-dashed rounded-2xl p-4 text-center cursor-pointer transition-all"
+                  style={{ borderColor: buyReceipt ? '#25D366' : '#E5E5EA', background: buyReceipt ? '#25D36606' : 'transparent' }}>
+                  <input ref={buyFileRef} type="file" accept="image/*,.pdf" className="hidden"
+                    onChange={e => setBuyReceipt(e.target.files?.[0] ?? null)} />
+                  {buyReceipt
+                    ? <p className="text-sm font-semibold text-[#25D366] truncate">{buyReceipt.name}</p>
+                    : <p className="text-[#8E8E93] text-sm">Tap to upload receipt (PNG, JPG, PDF)</p>
+                  }
+                </div>
+              </div>
+              <textarea value={buyNote} onChange={e => setBuyNote(e.target.value)}
+                placeholder="Note (optional) — e.g. preferred country for the number"
+                rows={2} className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none resize-none" />
+              {buyError && <p className="text-[#FF3B30] text-xs">{buyError}</p>}
+              <button onClick={submitBuyNumber} disabled={!buyReceipt || buyWorking}
+                className="w-full py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-40"
+                style={{ background: '#25D366' }}>
+                {buyWorking ? 'Submitting…' : 'Submit Payment for Review'}
+              </button>
+              <div className="pt-1">
+                <p className="text-center text-[#8E8E93] text-xs mb-2">Questions? Chat with us directly</p>
+                <LiveChatButtons />
+              </div>
+            </div>
+          )}
+
+          {/* ── Buy: success ── */}
+          {buyStep === 'done' && (
+            <div className="rounded-2xl border border-[#34C759]/30 bg-[#34C759]/05 p-5 text-center space-y-2">
+              <p className="text-2xl">🎉</p>
+              <p className="font-bold text-[#1C1C1E] text-sm">Request Submitted!</p>
+              <p className="text-[#8E8E93] text-xs">Admin has been notified. Your number will be ready within a few hours. You&apos;ll see it appear here automatically.</p>
+              <LiveChatButtons />
+            </div>
+          )}
+
+          {/* ── Divider ── */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-[#F2F2F7]" />
+            <span className="text-[#C7C7CC] text-xs">or register your own SIM</span>
+            <div className="flex-1 h-px bg-[#F2F2F7]" />
+          </div>
+
           {/* Step 1: Register form */}
           {waStep === 'idle' && !showRegForm && (
-            <div className={`rounded-2xl border-2 border-dashed border-[#E5E5EA] px-5 py-6 text-center space-y-3 ${waNumbers.length > 0 ? '' : ''}`}>
-              {waNumbers.length === 0 && <p className="text-[#1C1C1E] font-semibold text-sm">No number added yet</p>}
-              {waNumbers.length === 0 && <p className="text-[#8E8E93] text-xs leading-relaxed">Add your WhatsApp number — we register it on Meta for you. You&apos;ll get a code on your phone to confirm.</p>}
+            <div className="rounded-2xl border-2 border-dashed border-[#E5E5EA] px-5 py-4 text-center space-y-2">
+              {waNumbers.length === 0 && <p className="text-[#8E8E93] text-xs">Already have a SIM? We&apos;ll register it on Meta for you.</p>}
               <button
                 onClick={() => setShowRegForm(true)}
-                className="px-5 py-2.5 rounded-2xl text-sm font-bold text-white"
-                style={{ background: '#25D366', boxShadow: '0 4px 12px rgba(37,211,102,0.25)' }}
-              >
-                {waNumbers.length > 0 ? '+ Add another number' : 'Add a Number'}
+                className="px-5 py-2.5 rounded-2xl text-sm font-semibold text-[#1C1C1E] bg-[#F2F2F7]">
+                {waNumbers.length > 0 ? '+ Register another number' : 'Register your own number'}
               </button>
             </div>
           )}

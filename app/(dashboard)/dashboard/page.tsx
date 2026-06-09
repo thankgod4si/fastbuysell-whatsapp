@@ -195,8 +195,8 @@ export default function DashboardPage() {
 
         setSetupSteps([
           {
-            key: 'whatsapp', label: 'Connect WhatsApp', sub: 'Verify your business number',
-            href: '/settings', done: !!profile?.wa_verified,
+            key: 'whatsapp', label: 'Get a WhatsApp number', sub: 'Buy or connect your business number',
+            href: '/settings#whatsapp', done: !!profile?.wa_verified,
           },
           {
             key: 'email', label: 'Set up email sending', sub: 'Add your Resend API key',
