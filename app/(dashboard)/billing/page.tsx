@@ -53,15 +53,17 @@ export default function BillingPage() {
       const { data: { user } } = await supabaseBrowser.auth.getUser()
       if (!user) return
       setUserEmail(user.email ?? '')
-      const [{ data: prof }, { data: txData }] = await Promise.all([
+      const [{ data: prof }, { data: wallet }, { data: txData }] = await Promise.all([
         supabaseBrowser.from('profiles')
-          .select('id, credits, subscription_status, messages_sent_total, full_name')
+          .select('id, subscription_status, messages_sent_total, full_name')
           .eq('id', user.id).single(),
+        supabaseBrowser.from('wallets')
+          .select('balance').eq('user_id', user.id).maybeSingle(),
         supabaseBrowser.from('credit_transactions')
           .select('*').eq('user_id', user.id)
           .order('created_at', { ascending: false }).limit(20),
       ])
-      setProfile(prof as Profile)
+      setProfile({ ...(prof as Profile), credits: (wallet?.balance ?? 0) })
       setTxs((txData ?? []) as Tx[])
       setLoading(false)
     }

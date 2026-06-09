@@ -64,7 +64,7 @@ const NAV: NavItem[] = [
   { group: 'Channels',  href: '/campaigns', label: 'Email',         icon: ICON.email,      color: '#AF52DE' },
   { group: 'Channels',  href: '/templates', label: 'Templates',     icon: ICON.templates,  color: '#5856D6' },
   { group: 'Analytics', href: '/logs',      label: 'Activity Logs', icon: ICON.logs,     color: '#8E8E93' },
-  { group: 'Account',   href: '/billing',   label: 'Billing',       icon: ICON.billing,  color: '#34C759' },
+  { group: 'Account',   href: '/billing',   label: 'Wallet & Credits', icon: ICON.billing,  color: '#34C759' },
   { group: 'Account',   href: '/settings',  label: 'Settings',      icon: ICON.settings, color: '#8E8E93' },
 ]
 
@@ -140,10 +140,13 @@ export default function Sidebar() {
       setUserEmail(user.email ?? '')
       const { data } = await supabaseBrowser
         .from('profiles')
-        .select('full_name, subscription_status, trial_sends_remaining, is_admin, credits')
+        .select('full_name, subscription_status, trial_sends_remaining, is_admin')
         .eq('id', user.id)
         .single()
-      if (data) setProfile(data as Profile)
+      if (data) {
+        const { data: wallet } = await supabaseBrowser.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
+        setProfile({ ...(data as Profile), credits: wallet?.balance ?? 0 })
+      }
     }
     load()
   }, [])
