@@ -44,7 +44,21 @@ export async function sendInquiryTemplate(to: string, phoneNumberId?: string) {
   )
 }
 
-export async function sendFlowMessage(to: string, phoneNumberId?: string) {
+export async function sendFlowMessage(
+  to: string,
+  phoneNumberId?: string,
+  opts?: {
+    metaFlowId?: string
+    screen?: string
+    ctaText?: string
+    bodyText?: string
+  }
+) {
+  const flowId = opts?.metaFlowId || FLOW_ID
+  const screen = opts?.screen || 'CONTACT_DETAILS'
+  const cta    = opts?.ctaText || 'Formular ausfüllen'
+  const body   = opts?.bodyText || 'Vielen Dank für Ihr Interesse! Bitte füllen Sie das Formular aus, damit unser Team Sie schnellstmöglich kontaktieren kann.'
+
   return post({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -52,16 +66,16 @@ export async function sendFlowMessage(to: string, phoneNumberId?: string) {
     type: 'interactive',
     interactive: {
       type: 'flow',
-      body: { text: 'Vielen Dank für Ihr Interesse! Bitte füllen Sie das Formular aus, damit unser Team Sie schnellstmöglich kontaktieren kann.' },
+      body: { text: body },
       action: {
         name: 'flow',
         parameters: {
           flow_message_version: '3',
           flow_token: `fbs_${to}_${Date.now()}`,
-          flow_id: FLOW_ID,
-          flow_cta: 'Formular ausfüllen',
+          flow_id: flowId,
+          flow_cta: cta,
           flow_action: 'navigate',
-          flow_action_payload: { screen: 'CONTACT_DETAILS' },
+          flow_action_payload: { screen },
         },
       },
     },

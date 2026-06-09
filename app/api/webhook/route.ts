@@ -63,7 +63,22 @@ export async function POST(request: Request) {
       const payload: string = message.button?.payload ?? ''
 
       if (payload === 'INTERESTED') {
-        await sendFlowMessage(from, businessPhoneNumberId)
+        // Prefer user's own published flow; fall back to platform flow
+        let flowOpts: Parameters<typeof sendFlowMessage>[2]
+        if (userId) {
+          const { data: uf } = await supabase
+            .from('flows')
+            .select('meta_flow_id, cta_text, screen_title')
+            .eq('user_id', userId)
+            .eq('meta_status', 'published')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single()
+          if (uf?.meta_flow_id) {
+            flowOpts = { metaFlowId: uf.meta_flow_id, screen: 'LEAD_FORM', ctaText: uf.cta_text }
+          }
+        }
+        await sendFlowMessage(from, businessPhoneNumberId, flowOpts)
         const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q.eq('user_id', userId)
         await q
@@ -79,25 +94,29 @@ export async function POST(request: Request) {
     if (message.type === 'interactive' && message.interactive?.type === 'nfm_reply') {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
 
+      // flow_db_id embedded in footer payload lets us reliably attribute the lead
+      const resolvedUserId: string | null = flowData.user_id ?? userId
+
       const contactQuery = supabase.from('contacts').select('id').eq('phone', from)
-      if (userId) contactQuery.eq('user_id', userId)
-      const { data: contact } = await contactQuery.single()
+      if (resolvedUserId) contactQuery.eq('user_id', resolvedUserId)
+      const { data: contact } = await contactQuery.maybeSingle()
 
       await supabase.from('leads').insert({
         contact_id: contact?.id ?? null,
         phone: from,
-        full_name: flowData.full_name,
-        email: flowData.email,
-        car_make: flowData.car_make,
-        car_model: flowData.car_model,
-        car_year: flowData.car_year,
-        mileage: flowData.mileage,
-        asking_price: flowData.asking_price,
-        previous_owners: flowData.previous_owners,
-        condition: flowData.condition ?? null,
+        full_name:       flowData.full_name       ?? null,
+        email:           flowData.email           ?? null,
+        car_make:        flowData.car_make        ?? null,
+        car_model:       flowData.car_model       ?? null,
+        car_year:        flowData.car_year        ?? null,
+        mileage:         flowData.mileage         ?? null,
+        asking_price:    flowData.asking_price    ?? null,
+        previous_owners: flowData.previous_owners ?? null,
+        condition:       flowData.condition       ?? null,
+        notes:           flowData.notes           ?? null,
         status: 'new',
         source: 'whatsapp',
-        user_id: userId,
+        user_id: resolvedUserId,
       })
     }
   } catch (err) {

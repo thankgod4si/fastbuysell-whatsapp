@@ -1,9 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import type { FlowField } from '@/lib/whatsapp-flows'
 
 type Channel = 'whatsapp' | 'email' | 'sms'
+type Tab     = Channel | 'flows'
 type WaStatus = 'draft' | 'pending' | 'approved' | 'rejected'
+type FlowStatus = 'draft' | 'published' | 'deprecated'
 
 interface Template {
   id: string
@@ -31,6 +34,17 @@ interface WaNumber {
   is_default: boolean
 }
 
+interface Flow {
+  id: string
+  name: string
+  screen_title: string
+  cta_text: string
+  fields: FlowField[]
+  meta_flow_id: string | null
+  meta_status: FlowStatus
+  created_at: string
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -47,6 +61,25 @@ const WA_STATUS_META: Record<WaStatus, { label: string; color: string; bg: strin
   approved: { label: 'Approved', color: '#34C759', bg: '#34C75912' },
   rejected: { label: 'Rejected', color: '#FF3B30', bg: '#FF3B3012' },
 }
+
+const FLOW_STATUS_META: Record<FlowStatus, { label: string; color: string; bg: string }> = {
+  draft:      { label: 'Draft',      color: '#8E8E93', bg: '#8E8E9312' },
+  published:  { label: 'Published',  color: '#34C759', bg: '#34C75912' },
+  deprecated: { label: 'Deprecated', color: '#FF3B30', bg: '#FF3B3012' },
+}
+
+const AVAILABLE_FIELDS: FlowField[] = [
+  { key: 'full_name',       label: 'Full Name',        type: 'text',     required: true  },
+  { key: 'email',           label: 'Email Address',    type: 'email',    required: false },
+  { key: 'car_make',        label: 'Car Make',         type: 'text',     required: false },
+  { key: 'car_model',       label: 'Car Model',        type: 'text',     required: false },
+  { key: 'car_year',        label: 'Year',             type: 'number',   required: false },
+  { key: 'mileage',         label: 'Mileage (km)',     type: 'number',   required: false },
+  { key: 'asking_price',    label: 'Asking Price',     type: 'number',   required: false },
+  { key: 'condition',       label: 'Condition',        type: 'dropdown', required: false, options: ['Excellent','Good','Fair','Poor','For Parts'] },
+  { key: 'previous_owners', label: 'Previous Owners',  type: 'number',   required: false },
+  { key: 'notes',           label: 'Additional Notes', type: 'textarea', required: false },
+]
 
 const DEFAULT_TEMPLATES: Record<Channel, { name: string; body: string; subject?: string; header_text?: string; footer_text?: string }[]> = {
   whatsapp: [
@@ -88,13 +121,7 @@ The Fast Buy & Sell Team`,
 // Create Template Modal
 // ---------------------------------------------------------------------------
 
-interface CreateModalProps {
-  channel: Channel
-  onClose: () => void
-  onCreated: () => void
-}
-
-function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
+function CreateModal({ channel, onClose, onCreated }: { channel: Channel; onClose: () => void; onCreated: () => void }) {
   const [name, setName]           = useState('')
   const [category, setCategory]   = useState('MARKETING')
   const [language, setLanguage]   = useState('en_US')
@@ -135,19 +162,14 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
       style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(6px)' }}>
       <div className="w-full max-w-xl rounded-3xl overflow-hidden my-4"
         style={{ background: 'rgba(255,255,255,0.97)', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
-
-        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]">
           <div className="flex items-center gap-2.5">
-            <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: ch.bg, color: ch.color }}>
-              {ch.label}
-            </span>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl" style={{ background: ch.bg, color: ch.color }}>{ch.label}</span>
             <h2 className="font-bold text-[#1C1C1E]">New Template</h2>
           </div>
           <button onClick={onClose} className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] hover:bg-[#E5E5EA] text-lg">×</button>
         </div>
 
-        {/* Examples */}
         {DEFAULT_TEMPLATES[channel].length > 0 && (
           <div className="px-6 pt-4">
             <p className="text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-2">Start from example</p>
@@ -163,14 +185,12 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
         )}
 
         <form onSubmit={submit} className="p-6 space-y-4">
-          {/* Name */}
           <div>
             <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Template Name</label>
             <input value={name} onChange={e => setName(e.target.value)} required
               placeholder="Car Buyer Inquiry" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#007AFF]/25"/>
           </div>
 
-          {/* WhatsApp specific */}
           {channel === 'whatsapp' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -199,7 +219,6 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
             </div>
           )}
 
-          {/* Email subject */}
           {channel === 'email' && (
             <div>
               <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Subject Line</label>
@@ -208,7 +227,6 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
             </div>
           )}
 
-          {/* WA Header (optional) */}
           {channel === 'whatsapp' && (
             <div>
               <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Header Text <span className="text-[#C7C7CC] font-normal normal-case">(optional)</span></label>
@@ -217,7 +235,6 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
             </div>
           )}
 
-          {/* Body */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-[#8E8E93] uppercase tracking-wide">Message Body</label>
@@ -235,7 +252,6 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
               className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#007AFF]/25 resize-none leading-relaxed"/>
           </div>
 
-          {/* WA Footer */}
           {channel === 'whatsapp' && (
             <div>
               <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Footer Text <span className="text-[#C7C7CC] font-normal normal-case">(optional)</span></label>
@@ -246,7 +262,7 @@ function CreateModal({ channel, onClose, onCreated }: CreateModalProps) {
 
           {channel === 'whatsapp' && (
             <div className="rounded-2xl bg-[#FF9500]/8 border border-[#FF9500]/20 px-4 py-3 text-xs text-[#8E8E93] leading-relaxed">
-              <span className="font-semibold text-[#FF9500]">Meta approval required.</span> After saving, submit the template to Meta. Approval usually takes a few minutes for utility templates and up to 24h for marketing templates. Once approved, you can use it to blast contacts.
+              <span className="font-semibold text-[#FF9500]">Meta approval required.</span> After saving, submit the template to Meta. Approval usually takes a few minutes for utility templates and up to 24h for marketing templates.
             </div>
           )}
 
@@ -288,7 +304,6 @@ function TemplateCard({ tpl, onDelete, onSetDefault, onSubmit, onRefreshStatus }
 
   return (
     <div className="bg-white rounded-3xl p-5" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
-      {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -309,34 +324,21 @@ function TemplateCard({ tpl, onDelete, onSetDefault, onSubmit, onRefreshStatus }
         )}
       </div>
 
-      {/* Header text */}
-      {tpl.header_text && (
-        <p className="text-[#1C1C1E] text-xs font-semibold mb-1">{tpl.header_text}</p>
-      )}
+      {tpl.header_text && <p className="text-[#1C1C1E] text-xs font-semibold mb-1">{tpl.header_text}</p>}
 
-      {/* Body preview */}
       <div className="rounded-2xl bg-[#F2F2F7] px-4 py-3 mb-3">
         <p className="text-[#3C3C43] text-xs leading-relaxed line-clamp-3">{tpl.body}</p>
       </div>
 
-      {/* Footer */}
-      {tpl.footer_text && (
-        <p className="text-[#C7C7CC] text-[11px] mb-3 italic">{tpl.footer_text}</p>
-      )}
+      {tpl.footer_text && <p className="text-[#C7C7CC] text-[11px] mb-3 italic">{tpl.footer_text}</p>}
+      {tpl.wa_template_name && <p className="text-[#C7C7CC] text-[10px] font-mono mb-3">{tpl.wa_template_name}</p>}
 
-      {/* Meta template name */}
-      {tpl.wa_template_name && (
-        <p className="text-[#C7C7CC] text-[10px] font-mono mb-3">{tpl.wa_template_name}</p>
-      )}
-
-      {/* Rejection reason */}
       {tpl.wa_status === 'rejected' && tpl.wa_reject_reason && (
         <div className="rounded-xl bg-[#FF3B30]/8 px-3 py-2 mb-3">
           <p className="text-[#FF3B30] text-xs">{tpl.wa_reject_reason}</p>
         </div>
       )}
 
-      {/* Actions */}
       <div className="flex items-center gap-2 flex-wrap">
         {tpl.channel === 'whatsapp' && (tpl.wa_status === 'draft' || tpl.wa_status === 'rejected') && (
           <button onClick={handleSubmit} disabled={submitting}
@@ -371,10 +373,7 @@ function TemplateCard({ tpl, onDelete, onSetDefault, onSubmit, onRefreshStatus }
 // WA Numbers Panel
 // ---------------------------------------------------------------------------
 
-function WaNumbersPanel({ numbers, onSetDefault }: {
-  numbers: WaNumber[]
-  onSetDefault: (id: string) => void
-}) {
+function WaNumbersPanel({ numbers, onSetDefault }: { numbers: WaNumber[]; onSetDefault: (id: string) => void }) {
   if (numbers.length === 0) return null
   return (
     <div className="bg-white rounded-3xl p-5 mb-6" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
@@ -416,25 +415,280 @@ function WaNumbersPanel({ numbers, onSetDefault }: {
 }
 
 // ---------------------------------------------------------------------------
+// Create Flow Modal
+// ---------------------------------------------------------------------------
+
+function CreateFlowModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [name, setName]             = useState('')
+  const [screenTitle, setScreenTitle] = useState('Your Vehicle Details')
+  const [ctaText, setCtaText]       = useState('Submit Details')
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set(['full_name', 'car_make', 'car_model', 'car_year', 'asking_price']))
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState('')
+
+  function toggleField(key: string) {
+    if (key === 'full_name') return // always required
+    setSelectedKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError('')
+    setSaving(true)
+
+    const fields = AVAILABLE_FIELDS.filter(f => selectedKeys.has(f.key))
+    const res = await fetch('/api/whatsapp/flows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, screen_title: screenTitle, cta_text: ctaText, fields }),
+    })
+    const data = await res.json()
+    setSaving(false)
+    if (!res.ok) { setError(data.error); return }
+    onCreated()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(6px)' }}>
+      <div className="w-full max-w-xl rounded-3xl overflow-hidden my-4"
+        style={{ background: 'rgba(255,255,255,0.97)', boxShadow: '0 24px 80px rgba(0,0,0,0.2)' }}>
+
+        <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-[#007AFF]/10 text-[#007AFF]">Flow</span>
+            <h2 className="font-bold text-[#1C1C1E]">New Lead Flow</h2>
+          </div>
+          <button onClick={onClose} className="w-7 h-7 rounded-full bg-[#F2F2F7] flex items-center justify-center text-[#8E8E93] hover:bg-[#E5E5EA] text-lg">×</button>
+        </div>
+
+        <form onSubmit={submit} className="p-6 space-y-5">
+          <div>
+            <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Flow Name</label>
+            <input value={name} onChange={e => setName(e.target.value)} required
+              placeholder="Vehicle Lead Form" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#007AFF]/25"/>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Screen Title</label>
+              <input value={screenTitle} onChange={e => setScreenTitle(e.target.value)} required
+                placeholder="Your Vehicle Details" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#007AFF]/25"/>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-1.5">Submit Button</label>
+              <input value={ctaText} onChange={e => setCtaText(e.target.value)} required
+                placeholder="Submit Details" className="w-full bg-[#F2F2F7] rounded-2xl px-4 py-3 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none focus:ring-2 focus:ring-[#007AFF]/25"/>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#8E8E93] uppercase tracking-wide mb-3">Fields to Collect</label>
+            <div className="grid grid-cols-2 gap-2">
+              {AVAILABLE_FIELDS.map(f => {
+                const checked = selectedKeys.has(f.key)
+                const locked  = f.key === 'full_name'
+                return (
+                  <button key={f.key} type="button" onClick={() => toggleField(f.key)}
+                    className="flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-left transition-all"
+                    style={checked
+                      ? { background: '#007AFF', boxShadow: '0 2px 8px rgba(0,122,255,0.25)' }
+                      : { background: '#F2F2F7' }
+                    }>
+                    <div className="w-4 h-4 rounded-[5px] flex items-center justify-center shrink-0"
+                      style={checked ? { background: 'rgba(255,255,255,0.25)' } : { background: 'white', border: '1.5px solid #C7C7CC' }}>
+                      {checked && (
+                        <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                          <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold" style={{ color: checked ? 'white' : '#3C3C43' }}>
+                      {f.label}
+                      {locked && <span className="ml-1 opacity-60 text-[10px]">(required)</span>}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-[#007AFF]/8 border border-[#007AFF]/15 px-4 py-3 text-xs text-[#3C3C43] leading-relaxed">
+            <span className="font-semibold text-[#007AFF]">How it works:</span> Save the flow, then click <strong>Publish to Meta</strong>. Once published, it automatically attaches when contacts reply INTERESTED to your WhatsApp templates.
+          </div>
+
+          {error && <p className="text-[#FF3B30] text-sm">{error}</p>}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 py-3 rounded-2xl text-sm font-semibold bg-[#F2F2F7] text-[#3C3C43] hover:bg-[#E5E5EA] transition-colors">Cancel</button>
+            <button type="submit" disabled={saving} className="flex-1 py-3 rounded-2xl text-sm font-bold text-white disabled:opacity-50"
+              style={{ background: '#007AFF', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
+              {saving ? 'Saving…' : 'Save Flow'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Flow Card
+// ---------------------------------------------------------------------------
+
+function FlowCard({ flow, onDelete, onPublish }: {
+  flow: Flow
+  onDelete: (id: string) => void
+  onPublish: (id: string) => void
+}) {
+  const sm = FLOW_STATUS_META[flow.meta_status]
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState('')
+
+  async function handlePublish() {
+    setPublishing(true)
+    setPublishError('')
+    const res = await fetch(`/api/whatsapp/flows/${flow.id}`, { method: 'POST' })
+    const data = await res.json()
+    setPublishing(false)
+    if (!res.ok || !data.published) {
+      setPublishError(data.error ?? data.publish_error ?? 'Publish failed')
+      return
+    }
+    onPublish(flow.id)
+  }
+
+  return (
+    <div className="bg-white rounded-3xl p-5" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.07)' }}>
+      <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[#1C1C1E] font-bold text-sm">{flow.name}</p>
+          <p className="text-[#8E8E93] text-xs mt-0.5">Screen: {flow.screen_title} · Button: {flow.cta_text}</p>
+        </div>
+        <span className="text-[10px] font-bold px-2.5 py-1 rounded-xl shrink-0" style={{ background: sm.bg, color: sm.color }}>
+          {sm.label}
+        </span>
+      </div>
+
+      {/* Fields preview */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {flow.fields.map(f => (
+          <span key={f.key} className="text-[11px] font-semibold px-2.5 py-1 rounded-xl bg-[#F2F2F7] text-[#3C3C43]">
+            {f.label}
+          </span>
+        ))}
+      </div>
+
+      {flow.meta_flow_id && (
+        <p className="text-[#C7C7CC] text-[10px] font-mono mb-3">Meta ID: {flow.meta_flow_id}</p>
+      )}
+
+      {publishError && (
+        <div className="rounded-xl bg-[#FF3B30]/8 px-3 py-2 mb-3">
+          <p className="text-[#FF3B30] text-xs">{publishError}</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        {flow.meta_status === 'draft' && (
+          <button onClick={handlePublish} disabled={publishing}
+            className="text-xs font-bold px-3 py-1.5 rounded-xl text-white disabled:opacity-50"
+            style={{ background: '#007AFF', boxShadow: '0 2px 8px rgba(0,122,255,0.25)' }}>
+            {publishing ? 'Publishing…' : 'Publish to Meta'}
+          </button>
+        )}
+        {flow.meta_status === 'published' && (
+          <span className="text-xs text-[#34C759] font-semibold flex items-center gap-1">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+            Live — auto-attached on INTERESTED
+          </span>
+        )}
+        <button onClick={() => onDelete(flow.id)}
+          className="ml-auto text-xs font-semibold px-3 py-1.5 rounded-xl text-[#FF3B30] bg-[#FF3B30]/8 hover:bg-[#FF3B30]/15 transition-colors">
+          Delete
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Flows Tab
+// ---------------------------------------------------------------------------
+
+function FlowsTab({ flows, loading, onDelete, onPublish, onCreateNew }: {
+  flows: Flow[]
+  loading: boolean
+  onDelete: (id: string) => void
+  onPublish: (id: string) => void
+  onCreateNew: () => void
+}) {
+  if (loading) {
+    return (
+      <div className="space-y-3">
+        {[1, 2].map(i => <div key={i} className="h-36 bg-white rounded-3xl animate-pulse" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}/>)}
+      </div>
+    )
+  }
+
+  if (flows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 bg-[#007AFF]/10">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/><path d="M12 11v6"/><path d="M9 14h6"/>
+          </svg>
+        </div>
+        <p className="text-[#1C1C1E] font-bold">No flows yet</p>
+        <p className="text-[#8E8E93] text-sm mt-1 max-w-xs">Create a flow to collect lead details — car make, model, price and more — directly in WhatsApp</p>
+        <button onClick={onCreateNew} className="mt-4 text-sm font-bold px-5 py-2.5 rounded-2xl text-white"
+          style={{ background: '#007AFF', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
+          Create First Flow
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {flows.map(f => (
+        <FlowCard key={f.id} flow={f} onDelete={onDelete} onPublish={onPublish} />
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
 export default function TemplatesPage() {
-  const [channel, setChannel]     = useState<Channel>('whatsapp')
+  const [tab, setTab]             = useState<Tab>('whatsapp')
   const [templates, setTemplates] = useState<Template[]>([])
   const [waNumbers, setWaNumbers] = useState<WaNumber[]>([])
+  const [flows, setFlows]         = useState<Flow[]>([])
   const [loading, setLoading]     = useState(true)
   const [creating, setCreating]   = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [tplRes, numRes] = await Promise.all([
+    const [tplRes, numRes, flowRes] = await Promise.all([
       fetch('/api/templates'),
       fetch('/api/whatsapp/numbers'),
+      fetch('/api/whatsapp/flows'),
     ])
-    const [tpls, nums] = await Promise.all([tplRes.json(), numRes.json()])
+    const [tpls, nums, fls] = await Promise.all([tplRes.json(), numRes.json(), flowRes.json()])
     setTemplates(Array.isArray(tpls) ? tpls : [])
     setWaNumbers(Array.isArray(nums) ? nums : [])
+    setFlows(Array.isArray(fls) ? fls : [])
     setLoading(false)
   }, [])
 
@@ -476,55 +730,83 @@ export default function TemplatesPage() {
     load()
   }
 
-  const visible = templates.filter(t => t.channel === channel)
-  const ch = CHANNEL_META[channel]
+  async function deleteFlow(id: string) {
+    if (!confirm('Delete this flow?')) return
+    await fetch(`/api/whatsapp/flows/${id}`, { method: 'DELETE' })
+    setFlows(f => f.filter(x => x.id !== id))
+  }
+
+  const isFlowsTab  = tab === 'flows'
+  const channel     = isFlowsTab ? 'whatsapp' : tab as Channel
+  const visible     = templates.filter(t => t.channel === channel)
+  const ch          = CHANNEL_META[channel]
 
   return (
     <div className="max-w-3xl space-y-6">
-      {creating && (
+      {creating && !isFlowsTab && (
         <CreateModal channel={channel} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load() }} />
+      )}
+      {creating && isFlowsTab && (
+        <CreateFlowModal onClose={() => setCreating(false)} onCreated={() => { setCreating(false); load() }} />
       )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[#1C1C1E] font-black text-2xl">Templates</h1>
-          <p className="text-[#8E8E93] text-sm mt-0.5">Create and manage your outreach templates</p>
+          <p className="text-[#8E8E93] text-sm mt-0.5">Create and manage your outreach templates and lead flows</p>
         </div>
         <button onClick={() => setCreating(true)}
           className="flex items-center gap-2 text-sm font-bold px-5 py-2.5 rounded-2xl text-white"
-          style={{ background: ch.color, boxShadow: `0 4px 12px ${ch.color}35` }}>
+          style={{ background: isFlowsTab ? '#007AFF' : ch.color, boxShadow: `0 4px 12px ${isFlowsTab ? 'rgba(0,122,255,0.3)' : ch.color + '35'}` }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Template
+          {isFlowsTab ? 'New Flow' : 'New Template'}
         </button>
       </div>
 
-      {/* Channel tabs */}
+      {/* Tabs */}
       <div className="flex gap-1 p-1 rounded-2xl bg-white" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
         {(Object.keys(CHANNEL_META) as Channel[]).map(c => {
-          const m = CHANNEL_META[c]
+          const m     = CHANNEL_META[c]
           const count = templates.filter(t => t.channel === c).length
           return (
-            <button key={c} onClick={() => setChannel(c)}
+            <button key={c} onClick={() => setTab(c)}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
-              style={channel === c ? { background: m.bg, color: m.color } : { color: '#8E8E93' }}>
+              style={tab === c ? { background: m.bg, color: m.color } : { color: '#8E8E93' }}>
               {m.label}
               <span className="text-[11px] font-black tabular-nums px-1.5 py-0.5 rounded-full"
-                style={channel === c ? { background: m.color, color: 'white' } : { background: '#F2F2F7', color: '#8E8E93' }}>
+                style={tab === c ? { background: m.color, color: 'white' } : { background: '#F2F2F7', color: '#8E8E93' }}>
                 {count}
               </span>
             </button>
           )
         })}
+        <button onClick={() => setTab('flows')}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all"
+          style={tab === 'flows' ? { background: '#007AFF14', color: '#007AFF' } : { color: '#8E8E93' }}>
+          Flows
+          <span className="text-[11px] font-black tabular-nums px-1.5 py-0.5 rounded-full"
+            style={tab === 'flows' ? { background: '#007AFF', color: 'white' } : { background: '#F2F2F7', color: '#8E8E93' }}>
+            {flows.length}
+          </span>
+        </button>
       </div>
 
       {/* WA Numbers panel — only on WhatsApp tab */}
-      {channel === 'whatsapp' && (
+      {tab === 'whatsapp' && (
         <WaNumbersPanel numbers={waNumbers} onSetDefault={setDefaultNumber} />
       )}
 
-      {/* Templates list */}
-      {loading ? (
+      {/* Flows tab */}
+      {isFlowsTab ? (
+        <FlowsTab
+          flows={flows}
+          loading={loading}
+          onDelete={deleteFlow}
+          onPublish={() => load()}
+          onCreateNew={() => setCreating(true)}
+        />
+      ) : loading ? (
         <div className="space-y-3">
           {[1,2].map(i => <div key={i} className="h-44 bg-white rounded-3xl animate-pulse" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}/>)}
         </div>
@@ -536,7 +818,7 @@ export default function TemplatesPage() {
             </svg>
           </div>
           <p className="text-[#1C1C1E] font-bold">No {ch.label} templates yet</p>
-          <p className="text-[#8E8E93] text-sm mt-1">Create one or start from an example above</p>
+          <p className="text-[#8E8E93] text-sm mt-1">Create one or start from an example</p>
           <button onClick={() => setCreating(true)} className="mt-4 text-sm font-bold px-5 py-2.5 rounded-2xl text-white"
             style={{ background: ch.color }}>
             Create First Template
