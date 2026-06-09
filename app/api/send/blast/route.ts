@@ -28,6 +28,7 @@ export async function POST() {
   const failed: string[] = []
 
   for (const contact of contacts) {
+    console.log(`[blast] sending to ${contact.phone}`)
     const result = await sendInquiryTemplate(contact.phone)
 
     if (!result.error) {
@@ -35,8 +36,10 @@ export async function POST() {
         .from('contacts')
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', contact.id)
+      console.log(`[blast] sent to ${contact.phone}`)
       sent++
     } else {
+      console.error(`[blast] failed ${contact.phone}:`, JSON.stringify(result.error))
       failed.push(contact.phone)
     }
 

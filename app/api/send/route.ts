@@ -6,6 +6,7 @@ import { checkCanSend, trackSend } from '@/lib/usage'
 
 export async function POST(request: Request) {
   const { contactId, templateId } = await request.json()
+  console.log(`[send] contactId=${contactId} templateId=${templateId}`)
 
   const { data: contact } = await supabase
     .from('contacts').select('*').eq('id', contactId).single()
@@ -68,10 +69,12 @@ export async function POST(request: Request) {
   }
 
   if (result.error) {
+    console.error(`[send] Meta error for ${contact.phone}:`, JSON.stringify(result.error))
     return NextResponse.json({ error: (result.error as { message?: string }).message ?? 'Send failed' }, { status: 500 })
   }
 
   const wamid = (result.messages as Array<{ id: string }>)?.[0]?.id
+  console.log(`[send] sent to ${contact.phone} phoneNumberId=${phoneNumberId} wamid=${wamid}`)
 
   await Promise.all([
     supabase.from('contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', contactId),

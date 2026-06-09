@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendFlowMessage } from '@/lib/whatsapp'
 import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
-import { getTokenForPhoneNumberId } from '@/lib/meta-app'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
@@ -56,7 +55,6 @@ export async function POST(request: Request) {
     const waName: string | null = value?.contacts?.[0]?.profile?.name ?? null
 
     let userId: string | null = null
-    let metaToken: string | undefined
     if (businessPhoneNumberId) {
       // Check profiles table first
       const { data: profile } = await supabase
@@ -77,9 +75,6 @@ export async function POST(request: Request) {
       }
 
       console.log(`[webhook] resolved userId=${userId} for bizId=${businessPhoneNumberId}`)
-
-      // Resolve per-app token for sending replies/flows back to this number
-      metaToken = await getTokenForPhoneNumberId(businessPhoneNumberId)
     }
 
     // Upsert contact with their WhatsApp profile name
@@ -125,7 +120,7 @@ export async function POST(request: Request) {
           msgType: 'button_reply',
           userId,
         })
-        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(), metaToken)
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
         let q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
         if (userId) q = q.eq('user_id', userId)
         await q
@@ -159,7 +154,7 @@ export async function POST(request: Request) {
       })
 
       if (contactRecord && ['sent', 'delivered', 'read'].includes(contactRecord.status)) {
-        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(), metaToken)
+        await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
         await supabase.from('contacts').update({ status: 'replied' }).eq('id', contactRecord.id)
       }
     }

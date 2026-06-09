@@ -31,10 +31,13 @@ export async function POST(request: Request) {
     phoneNumberId = profile?.wa_phone_number_id ?? undefined
   }
 
+  console.log(`[reply] to=${contact.phone} phoneNumberId=${phoneNumberId} msg="${message.trim().slice(0,50)}"`)
   const result = await sendTextMessage(contact.phone, message.trim(), phoneNumberId)
   if ((result as { error?: { message?: string } }).error) {
+    console.error(`[reply] Meta error:`, JSON.stringify((result as { error: unknown }).error))
     return NextResponse.json({ error: (result as { error: { message?: string } }).error.message ?? 'Send failed' }, { status: 500 })
   }
+  console.log(`[reply] sent wamid=${(result.messages as Array<{id:string}>)?.[0]?.id}`)
 
   const wamid = (result.messages as Array<{ id: string }>)?.[0]?.id
 
