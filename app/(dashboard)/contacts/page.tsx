@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { supabaseBrowser } from '@/lib/supabase-browser'
 import type { Contact } from '@/types'
 
-const TEMPLATE = `Hallo,
-
-Wir sind Fast Buy & Sell – eine Plattform, die Fahrzeugverkäufer mit verifizierten Käufern in ganz Europa verbindet.
-
-Haben Sie derzeit Fahrzeuge zum Verkauf verfügbar?`
+interface Message {
+  id: string; direction: 'outbound' | 'inbound'; content: string | null
+  msg_type: string; status: string; sent_at: string
+}
 
 type ToastItem = { id: number; msg: string; ok: boolean }
 
@@ -41,16 +41,20 @@ function formatTime(iso: string | null) {
 }
 
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [selected, setSelected] = useState<Contact | null>(null)
-  const [raw, setRaw] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [sendingId, setSendingId] = useState<string | null>(null)
-  const [toasts, setToasts] = useState<ToastItem[]>([])
-  const [testPhone, setTestPhone] = useState('')
-  const [testing, setTesting] = useState(false)
-  const [showAdd, setShowAdd] = useState(false)
-  const [searchQ, setSearchQ] = useState('')
+  const [contacts,   setContacts]   = useState<Contact[]>([])
+  const [selected,   setSelected]   = useState<Contact | null>(null)
+  const [messages,   setMessages]   = useState<Message[]>([])
+  const [raw,        setRaw]        = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [sendingId,  setSendingId]  = useState<string | null>(null)
+  const [toasts,     setToasts]     = useState<ToastItem[]>([])
+  const [testPhone,  setTestPhone]  = useState('')
+  const [testing,    setTesting]    = useState(false)
+  const [showAdd,    setShowAdd]    = useState(false)
+  const [searchQ,    setSearchQ]    = useState('')
+  const [reply,      setReply]      = useState('')
+  const [sending,    setSending]    = useState(false)
+  const bottomRef                   = useRef<HTMLDivElement>(null)
 
   const detected = parseNumbers(raw)
 
@@ -61,6 +65,29 @@ export default function ContactsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Load real conversation messages when a contact is selected
+  const loadMessages = useCallback(async (contactId: string) => {
+    const res = await fetch(`/api/conversations/${contactId}`)
+    if (res.ok) {
+      const data = await res.json()
+      setMessages(data.messages ?? [])
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selected) { setMessages([]); return }
+    loadMessages(selected.id)
+    const ch = supabaseBrowser
+      .channel(`contacts-conv-${selected.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_logs' }, () => loadMessages(selected.id))
+      .subscribe()
+    return () => { supabaseBrowser.removeChannel(ch) }
+  }, [selected, loadMessages])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages.length])
 
   function notify(msg: string, ok = true) {
     const id = Date.now()
@@ -97,6 +124,21 @@ export default function ContactsPage() {
     else { notify('Message sent!'); load() }
   }
 
+  async function sendReply(e: { preventDefault(): void }) {
+    e.preventDefault()
+    if (!selected || !reply.trim()) return
+    setSending(true)
+    const res = await fetch('/api/send/reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactId: selected.id, message: reply.trim() }),
+    })
+    const data = await res.json()
+    setSending(false)
+    if (!res.ok) notify(data.error || 'Send failed', false)
+    else { setReply(''); loadMessages(selected.id) }
+  }
+
   const sendTest = async (e: React.BaseSyntheticEvent) => {
     e.preventDefault()
     setTesting(true)
@@ -113,6 +155,14 @@ export default function ContactsPage() {
     pending: contacts.filter(c => c.status === 'pending').length,
     sent: contacts.filter(c => c.status === 'sent').length,
     replied: contacts.filter(c => c.status === 'replied').length,
+  }
+
+  function bubbleLabel(m: Message) {
+    if (m.msg_type === 'form_submission') return m.content ?? 'Form submitted'
+    if (m.direction === 'inbound') return m.content ?? ''
+    if (m.msg_type === 'template') return m.content ?? '📨  Outreach message sent'
+    if (m.msg_type === 'flow') return '📋  Flow form sent'
+    return m.content ?? ''
   }
 
   return (
@@ -226,7 +276,7 @@ export default function ContactsPage() {
                 </div>
                 <div>
                   <p className="text-[#1C1C1E] font-semibold text-sm font-mono">{selected.phone}</p>
-                  <p className="text-[#8E8E93] text-xs capitalize">{selected.status === 'replied' ? '🟢 Replied' : selected.status === 'sent' ? '✓✓ Delivered' : selected.status === 'pending' ? '⏳ Queued' : '⛔ Opted out'}</p>
+                  <p className="text-[#8E8E93] text-xs">{selected.status === 'replied' ? '🟢 Replied' : selected.status === 'sent' ? '✓✓ Delivered' : selected.status === 'pending' ? '⏳ Queued' : '⛔ Opted out'}</p>
                 </div>
                 <div className="ml-auto flex gap-2">
                   {selected.status === 'pending' && (
@@ -238,63 +288,62 @@ export default function ContactsPage() {
               </div>
 
               {/* Messages area */}
-              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
-                {/* Date chip */}
-                <div className="text-center">
-                  <span className="text-[11px] text-[#5C5C5C] bg-white/60 px-3 py-1 rounded-full">
-                    {selected.sent_at ? new Date(selected.sent_at).toLocaleDateString(undefined, {weekday:'long',month:'long',day:'numeric'}) : 'Not yet sent'}
-                  </span>
-                </div>
-
-                {/* Outbound message bubble */}
-                {(selected.status !== 'pending' && selected.status !== 'blacklisted') && (
-                  <div className="flex justify-end">
-                    <div className="max-w-xs rounded-2xl rounded-tr-sm px-4 py-3 shadow-sm" style={{background:'#DCF8C6'}}>
-                      <p className="text-[#1C1C1E] text-sm leading-relaxed whitespace-pre-line">{TEMPLATE}</p>
-                      <div className="flex items-center justify-end gap-1 mt-1.5">
-                        <span className="text-[#667781] text-[10px]">{formatTime(selected.sent_at)}</span>
-                        <DeliveryTick status={selected.status} />
+              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+                {messages.length === 0 ? (
+                  <div className="flex justify-center pt-8">
+                    <span className="text-[11px] text-[#5C5C5C] bg-white/60 px-3 py-1 rounded-full">
+                      {selected.status === 'pending' ? '⏳ Ready to send — cron fires automatically' : 'No messages yet'}
+                    </span>
+                  </div>
+                ) : messages.map(m => {
+                  const out = m.direction === 'outbound'
+                  const isForm = m.msg_type === 'form_submission'
+                  return (
+                    <div key={m.id} className={`flex mb-2 ${out ? 'justify-end' : 'justify-start'}`}>
+                      <div className="max-w-[72%]">
+                        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm`}
+                          style={
+                            isForm ? { background: '#34C75910', border: '1px solid #34C75930' } :
+                            out ? { background: '#DCF8C6' } :
+                            { background: 'white', border: '1px solid rgba(0,0,0,0.06)' }
+                          }>
+                          <p style={{ color: isForm ? '#34C759' : '#1C1C1E' }} className="whitespace-pre-wrap">
+                            {isForm && '✅ '}{bubbleLabel(m)}
+                          </p>
+                        </div>
+                        <div className={`flex items-center gap-1 mt-0.5 px-1 ${out ? 'justify-end' : 'justify-start'}`}>
+                          <span className="text-[10px] text-[#667781]">
+                            {new Date(m.sent_at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
+                          </span>
+                          {out && <span style={{color: m.status==='read'?'#34C759':'#C7C7CC',fontSize:10}}>
+                            {m.status==='sent'?'✓':'✓✓'}
+                          </span>}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Pending state */}
-                {selected.status === 'pending' && (
-                  <div className="flex justify-center">
-                    <div className="bg-white/80 rounded-2xl px-5 py-4 max-w-xs text-center shadow-sm">
-                      <p className="text-2xl mb-2">⏳</p>
-                      <p className="text-[#1C1C1E] text-sm font-semibold">Ready to send</p>
-                      <p className="text-[#8E8E93] text-xs mt-1">Cron sends automatically, or click "Send Now" above</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Replied state */}
-                {selected.status === 'replied' && (
-                  <div className="flex justify-start">
-                    <div className="max-w-xs rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm bg-white">
-                      <p className="text-[#1C1C1E] text-sm">Replied to your message 👍</p>
-                      <p className="text-[#8E8E93] text-[10px] mt-1">Via WhatsApp Flow</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Blacklisted */}
-                {selected.status === 'blacklisted' && (
-                  <div className="flex justify-center">
-                    <span className="text-[11px] text-[#5C5C5C] bg-white/60 px-3 py-1 rounded-full">⛔ Opted out — no more messages</span>
-                  </div>
-                )}
+                  )
+                })}
+                <div ref={bottomRef} />
               </div>
 
-              {/* WhatsApp template notice */}
-              <div className="px-4 py-2 border-t border-black/[0.06]" style={{background:'rgba(255,255,255,0.9)'}}>
-                <div className="flex items-center gap-2 text-[#667781] text-xs">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-                  <p>Sends the approved <span className="font-semibold">car_seller_inquiry</span> template · Cron fires every 20 seconds</p>
-                </div>
-              </div>
+              {/* Reply input */}
+              {selected.status !== 'blacklisted' && (
+                <form onSubmit={sendReply} className="flex items-end gap-2 px-3 py-3 border-t border-black/[0.06]" style={{background:'rgba(255,255,255,0.95)'}}>
+                  <input
+                    value={reply}
+                    onChange={e => setReply(e.target.value)}
+                    placeholder="Type a message…"
+                    className="flex-1 bg-[#F2F2F7] rounded-2xl px-4 py-2.5 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none"
+                  />
+                  <button type="submit" disabled={sending || !reply.trim()}
+                    className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-opacity disabled:opacity-40"
+                    style={{background:'#25D366'}}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                      <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                    </svg>
+                  </button>
+                </form>
+              )}
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center px-8">

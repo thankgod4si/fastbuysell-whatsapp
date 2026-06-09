@@ -236,6 +236,8 @@ function ChatBubble({ msg }: { msg: Message }) {
 function ConversationPanel({ contactId, onProfile }: { contactId: string; onProfile: () => void }) {
   const [data,    setData]    = useState<ConvData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [reply,   setReply]   = useState('')
+  const [sending, setSending] = useState(false)
   const bottomRef             = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -319,6 +321,38 @@ function ConversationPanel({ contactId, onProfile }: { contactId: string; onProf
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Reply input */}
+      {data.contact.status !== 'blacklisted' && (
+        <form onSubmit={async e => {
+          e.preventDefault()
+          if (!reply.trim()) return
+          setSending(true)
+          const res = await fetch('/api/send/reply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contactId, message: reply.trim() }),
+          })
+          setSending(false)
+          if (res.ok) { setReply(''); load() }
+        }}
+          className="flex items-end gap-2 px-3 py-3 border-t border-black/[0.05] shrink-0"
+          style={{ background: 'white' }}>
+          <input
+            value={reply}
+            onChange={e => setReply(e.target.value)}
+            placeholder="Type a message…"
+            className="flex-1 bg-[#F2F2F7] rounded-2xl px-4 py-2.5 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none"
+          />
+          <button type="submit" disabled={sending || !reply.trim()}
+            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-opacity disabled:opacity-40"
+            style={{ background: '#25D366' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </form>
+      )}
     </div>
   )
 }

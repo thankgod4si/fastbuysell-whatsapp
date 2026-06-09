@@ -9,16 +9,22 @@ export async function createMessageLog(params: {
   externalId?: string | null
   recipient: string
   userId?: string | null
+  content?: string | null
+  direction?: 'outbound' | 'inbound'
+  msgType?: string
 }) {
   await supabase.from('message_logs').insert({
     contact_id: params.contactId ?? null,
-    lead_id: params.leadId ?? null,
-    channel: params.channel,
+    lead_id:    params.leadId    ?? null,
+    channel:    params.channel,
     external_id: params.externalId ?? null,
-    recipient: params.recipient,
-    status: 'sent',
-    sent_at: new Date().toISOString(),
-    user_id: params.userId ?? null,
+    recipient:  params.recipient,
+    status:     'sent',
+    sent_at:    new Date().toISOString(),
+    user_id:    params.userId ?? null,
+    direction:  params.direction ?? 'outbound',
+    msg_type:   params.msgType   ?? 'template',
+    content:    params.content   ?? null,
   })
 }
 
