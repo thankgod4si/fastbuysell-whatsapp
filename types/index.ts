@@ -20,15 +20,23 @@ export interface Lead {
   id: string
   contact_id: string | null
   phone: string
-  full_name: string
-  email: string
-  car_make: string
-  car_model: string
-  car_year: string
-  mileage: string
-  asking_price: string
-  previous_owners: string
+  full_name: string | null
+  email: string | null
+  phone_number: string | null
+  company: string | null
+  product_service: string | null
+  budget: string | null
+  location: string | null
+  timeline: string | null
+  notes: string | null
+  car_make: string | null
+  car_model: string | null
+  car_year: string | null
+  mileage: string | null
+  asking_price: string | null
+  previous_owners: string | null
   condition: string | null
+  response_data: Record<string, unknown> | null
   status: LeadStatus
   source: LeadSource
   email_sent_at: string | null

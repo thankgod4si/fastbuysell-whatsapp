@@ -43,7 +43,9 @@ export async function POST(request: Request) {
     const message = value?.messages?.[0]
     if (!message) return NextResponse.json({ status: 'ok' })
 
-    const from: string = message.from
+    // WhatsApp sends numbers without '+' — normalize so they match stored contacts
+    const rawFrom: string = message.from
+    const from: string = rawFrom.startsWith('+') ? rawFrom : `+${rawFrom}`
     const businessPhoneNumberId: string | undefined = value?.metadata?.phone_number_id
 
     // WhatsApp sends contact profile info alongside messages — capture the display name
@@ -81,8 +83,8 @@ export async function POST(request: Request) {
     }
 
     // Look up contact record for conversation threading
-    const cqBase = supabase.from('contacts').select('id, status').eq('phone', from)
-    if (userId) cqBase.eq('user_id', userId)
+    let cqBase = supabase.from('contacts').select('id, status').eq('phone', from)
+    if (userId) cqBase = cqBase.eq('user_id', userId)
     const { data: contactRecord } = await cqBase.maybeSingle()
 
     // Shared helper — look up user's latest published flow
@@ -114,8 +116,8 @@ export async function POST(request: Request) {
           userId,
         })
         await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts())
-        const q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
-        if (userId) q.eq('user_id', userId)
+        let q = supabase.from('contacts').update({ status: 'replied' }).eq('phone', from)
+        if (userId) q = q.eq('user_id', userId)
         await q
       }
 
@@ -127,8 +129,8 @@ export async function POST(request: Request) {
           msgType: 'button_reply',
           userId,
         })
-        const q = supabase.from('contacts').update({ status: 'blacklisted' }).eq('phone', from)
-        if (userId) q.eq('user_id', userId)
+        let q = supabase.from('contacts').update({ status: 'blacklisted' }).eq('phone', from)
+        if (userId) q = q.eq('user_id', userId)
         await q
       }
     }
@@ -155,8 +157,8 @@ export async function POST(request: Request) {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
       const resolvedUserId: string | null = flowData.user_id ?? userId
 
-      const contactQuery = supabase.from('contacts').select('id').eq('phone', from)
-      if (resolvedUserId) contactQuery.eq('user_id', resolvedUserId)
+      let contactQuery = supabase.from('contacts').select('id').eq('phone', from)
+      if (resolvedUserId) contactQuery = contactQuery.eq('user_id', resolvedUserId)
       const { data: contact } = await contactQuery.maybeSingle()
 
       // Save as conversation message

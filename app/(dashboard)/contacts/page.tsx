@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
-import type { Contact } from '@/types'
+import type { Contact, Lead } from '@/types'
 
 interface Message {
   id: string; direction: 'outbound' | 'inbound'; content: string | null
@@ -37,54 +37,134 @@ function displayName(c: Contact) { return c.wa_name ?? c.name ?? c.phone }
 
 function Avatar({ contact, size = 40 }: { contact: Contact; size?: number }) {
   const bg = avatarColor(contact.phone)
+  const label = displayName(contact)
   return (
     <div className="rounded-full flex items-center justify-center text-white font-bold shrink-0"
       style={{ width: size, height: size, background: bg, fontSize: size * 0.36 }}>
-      {initials(displayName(contact) !== contact.phone ? displayName(contact) : null, contact.phone)}
+      {initials(label !== contact.phone ? label : null, contact.phone)}
     </div>
   )
 }
 
-// ── Profile drawer ────────────────────────────────────────────────────────
-function ProfileDrawer({ contact, onClose }: { contact: Contact; onClose: () => void }) {
+// ── Profile Modal ─────────────────────────────────────────────────────────
+function ProfileModal({ contact, lead, onClose }: { contact: Contact; lead: Lead | null; onClose: () => void }) {
+  const color = avatarColor(contact.phone)
   const name = displayName(contact)
-  const statusColors: Record<string, { c: string; bg: string }> = {
-    pending: { c: '#FF9500', bg: '#FF950015' },
-    sent:    { c: '#007AFF', bg: '#007AFF15' },
-    replied: { c: '#34C759', bg: '#34C75915' },
-    blacklisted: { c: '#8E8E93', bg: '#8E8E9315' },
+
+  const statusMap: Record<string, { label: string; color: string; bg: string }> = {
+    pending:     { label: 'Queued',    color: '#FF9500', bg: '#FF950015' },
+    sent:        { label: 'Delivered', color: '#007AFF', bg: '#007AFF15' },
+    replied:     { label: 'Replied',   color: '#34C759', bg: '#34C75915' },
+    blacklisted: { label: 'Opted out', color: '#8E8E93', bg: '#8E8E9315' },
   }
-  const sm = statusColors[contact.status] ?? { c: '#8E8E93', bg: '#8E8E9315' }
+  const sm = statusMap[contact.status] ?? statusMap.pending
+
+  // Build lead info rows — only show fields that have values
+  const leadRows: { label: string; value: string }[] = []
+  if (lead) {
+    if (lead.full_name)       leadRows.push({ label: 'Name',         value: lead.full_name })
+    if (lead.email)           leadRows.push({ label: 'Email',        value: lead.email })
+    if (lead.phone_number)    leadRows.push({ label: 'Alt Phone',    value: lead.phone_number })
+    if (lead.company)         leadRows.push({ label: 'Company',      value: lead.company })
+    if (lead.product_service) leadRows.push({ label: 'Selling',      value: lead.product_service })
+    if (lead.budget)          leadRows.push({ label: 'Budget',       value: lead.budget })
+    if (lead.location)        leadRows.push({ label: 'Location',     value: lead.location })
+    if (lead.timeline)        leadRows.push({ label: 'Timeline',     value: lead.timeline })
+    if (lead.car_make) {
+      const car = [lead.car_year, lead.car_make, lead.car_model].filter(Boolean).join(' ')
+      leadRows.push({ label: 'Vehicle', value: car })
+    }
+    if (lead.asking_price)    leadRows.push({ label: 'Asking Price', value: lead.asking_price })
+    if (lead.mileage)         leadRows.push({ label: 'Mileage',      value: lead.mileage })
+    if (lead.condition)       leadRows.push({ label: 'Condition',    value: lead.condition })
+    if (lead.previous_owners) leadRows.push({ label: 'Prev. Owners', value: lead.previous_owners })
+    if (lead.notes)           leadRows.push({ label: 'Notes',        value: lead.notes })
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end"
-      style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(4px)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full sm:w-72 rounded-t-3xl sm:rounded-3xl overflow-y-auto"
-        style={{ background: 'white', boxShadow: '-8px 0 32px rgba(0,0,0,0.15)', maxHeight: '82vh' }}>
-        <div className="p-6 text-center relative"
-          style={{ background: `linear-gradient(135deg,${avatarColor(contact.phone)}22,${avatarColor(contact.phone)}06)` }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(6px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl overflow-hidden flex flex-col"
+        style={{ background: 'white', boxShadow: '0 24px 80px rgba(0,0,0,0.25)', maxHeight: '88vh' }}
+      >
+        {/* Header */}
+        <div className="relative px-6 pt-8 pb-6 text-center flex-shrink-0"
+          style={{ background: `linear-gradient(160deg, ${color}28 0%, ${color}08 100%)` }}>
           <button onClick={onClose}
-            className="absolute top-4 right-4 w-7 h-7 rounded-full bg-black/[0.07] flex items-center justify-center text-[#8E8E93] hover:bg-black/[0.12] text-xl leading-none">×</button>
-          <Avatar contact={contact} size={72} />
-          <h2 className="text-[#1C1C1E] font-black text-lg mt-3">{name}</h2>
-          {contact.wa_name && contact.wa_name !== name && (
-            <p className="text-[#C7C7CC] text-xs mt-0.5">WA: {contact.wa_name}</p>
+            className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center text-[#8E8E93] hover:bg-black/[0.08] transition-colors text-lg"
+            style={{ background: 'rgba(0,0,0,0.06)' }}>
+            ×
+          </button>
+
+          <div className="flex justify-center mb-3">
+            <Avatar contact={contact} size={80} />
+          </div>
+
+          <h2 className="text-[#1C1C1E] font-black text-xl leading-tight">{name}</h2>
+          {lead?.full_name && lead.full_name !== name && (
+            <p className="text-[#8E8E93] text-sm mt-0.5">{lead.full_name}</p>
           )}
-          <p className="text-[#8E8E93] text-sm font-mono mt-0.5">{contact.phone}</p>
+          <p className="text-[#8E8E93] text-sm font-mono mt-1">{contact.phone}</p>
+
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: sm.bg, color: sm.color }}>
+              {sm.label}
+            </span>
+            {lead && (
+              <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: '#34C75915', color: '#34C759' }}>
+                Form submitted
+              </span>
+            )}
+          </div>
         </div>
-        <div className="p-5 space-y-3">
-          {[
-            { label: 'Phone',    value: contact.phone },
-            { label: 'Status',   value: contact.status },
-            { label: 'Channel',  value: contact.channel },
-            { label: 'Added',    value: new Date(contact.created_at).toLocaleDateString() },
-            ...(contact.sent_at ? [{ label: 'Sent',  value: new Date(contact.sent_at).toLocaleString() }] : []),
-          ].map(r => (
-            <div key={r.label} className="flex items-center justify-between bg-[#F2F2F7] rounded-2xl px-4 py-2.5">
-              <span className="text-[#8E8E93] text-xs">{r.label}</span>
-              <span className="text-xs font-semibold capitalize" style={r.label === 'Status' ? { color: sm.c } : { color: '#1C1C1E' }}>{r.value}</span>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+
+          {/* Contact info */}
+          <div>
+            <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-2 px-1">Contact</p>
+            <div className="rounded-2xl overflow-hidden border border-[#F2F2F7]">
+              {[
+                { label: 'WhatsApp', value: contact.wa_name ?? '—' },
+                { label: 'Phone',    value: contact.phone },
+                { label: 'Added',    value: new Date(contact.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) },
+              ].map((row, i, arr) => (
+                <div key={row.label} className={`flex items-center justify-between px-4 py-3 ${i < arr.length - 1 ? 'border-b border-[#F2F2F7]' : ''}`}>
+                  <span className="text-xs text-[#8E8E93]">{row.label}</span>
+                  <span className="text-xs font-semibold text-[#1C1C1E] text-right max-w-[60%] truncate">{row.value}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Lead / form data */}
+          {leadRows.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-widest mb-2 px-1">Form Details</p>
+              <div className="rounded-2xl overflow-hidden border border-[#F2F2F7]">
+                {leadRows.map((row, i) => (
+                  <div key={row.label} className={`flex items-start justify-between px-4 py-3 gap-3 ${i < leadRows.length - 1 ? 'border-b border-[#F2F2F7]' : ''}`}>
+                    <span className="text-xs text-[#8E8E93] shrink-0">{row.label}</span>
+                    <span className="text-xs font-semibold text-[#1C1C1E] text-right break-words max-w-[65%]">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!lead && (
+            <div className="rounded-2xl bg-[#F2F2F7] px-4 py-4 text-center">
+              <p className="text-xs text-[#8E8E93]">No form submitted yet</p>
+              <p className="text-[11px] text-[#C7C7CC] mt-0.5">Seller hasn&apos;t tapped &quot;Interested&quot; or filled the form</p>
+            </div>
+          )}
+
+          <div className="pb-2" />
         </div>
       </div>
     </div>
@@ -112,17 +192,18 @@ function formatTime(iso: string | null) {
 }
 
 export default function ContactsPage() {
-  const [contacts,   setContacts]   = useState<Contact[]>([])
-  const [selected,   setSelected]   = useState<Contact | null>(null)
-  const [messages,   setMessages]   = useState<Message[]>([])
-  const [raw,        setRaw]        = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const [sendingId,  setSendingId]  = useState<string | null>(null)
-  const [toasts,     setToasts]     = useState<ToastItem[]>([])
-  const [testPhone,  setTestPhone]  = useState('')
-  const [testing,    setTesting]    = useState(false)
-  const [showAdd,    setShowAdd]    = useState(false)
-  const [searchQ,    setSearchQ]    = useState('')
+  const [contacts,    setContacts]    = useState<Contact[]>([])
+  const [selected,    setSelected]    = useState<Contact | null>(null)
+  const [messages,    setMessages]    = useState<Message[]>([])
+  const [activeLead,  setActiveLead]  = useState<Lead | null>(null)
+  const [raw,         setRaw]         = useState('')
+  const [saving,      setSaving]      = useState(false)
+  const [sendingId,   setSendingId]   = useState<string | null>(null)
+  const [toasts,      setToasts]      = useState<ToastItem[]>([])
+  const [testPhone,   setTestPhone]   = useState('')
+  const [testing,     setTesting]     = useState(false)
+  const [showAdd,     setShowAdd]     = useState(false)
+  const [searchQ,     setSearchQ]     = useState('')
   const [reply,       setReply]       = useState('')
   const [sending,     setSending]     = useState(false)
   const [showProfile, setShowProfile] = useState(false)
@@ -138,17 +219,17 @@ export default function ContactsPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Load real conversation messages when a contact is selected
   const loadMessages = useCallback(async (contactId: string) => {
     const res = await fetch(`/api/conversations/${contactId}`)
     if (res.ok) {
       const data = await res.json()
       setMessages(data.messages ?? [])
+      setActiveLead(data.lead ?? null)
     }
   }, [])
 
   useEffect(() => {
-    if (!selected) { setMessages([]); return }
+    if (!selected) { setMessages([]); setActiveLead(null); return }
     loadMessages(selected.id)
     const ch = supabaseBrowser
       .channel(`contacts-conv-${selected.id}`)
@@ -221,7 +302,7 @@ export default function ContactsPage() {
     else notify('Test sent! Check WhatsApp ✓')
   }
 
-  const filtered = contacts.filter(c => !searchQ || c.phone.includes(searchQ))
+  const filtered = contacts.filter(c => !searchQ || c.phone.includes(searchQ) || (c.wa_name ?? '').toLowerCase().includes(searchQ.toLowerCase()))
 
   const stats = {
     pending: contacts.filter(c => c.status === 'pending').length,
@@ -337,9 +418,9 @@ export default function ContactsPage() {
             </div>
           ) : selected ? (
             <>
-              {/* Chat header — click avatar or name to open profile */}
+              {/* Chat header — click to open profile */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.08]" style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(20px)'}}>
-                <button onClick={()=>setShowProfile(true)} className="flex items-center gap-3 hover:opacity-75 flex-1 min-w-0 text-left">
+                <button onClick={()=>setShowProfile(true)} className="flex items-center gap-3 hover:opacity-75 flex-1 min-w-0 text-left transition-opacity">
                   <Avatar contact={selected} size={38} />
                   <div className="flex-1 min-w-0">
                     <p className="text-[#1C1C1E] font-bold text-sm truncate">{displayName(selected)}</p>
@@ -356,6 +437,14 @@ export default function ContactsPage() {
                       {sendingId===selected.id?'Sending…':'Send Now'}
                     </button>
                   )}
+                  {/* Profile button */}
+                  <button onClick={()=>setShowProfile(true)}
+                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-black/[0.06] transition-colors"
+                    title="View profile">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
 
@@ -438,9 +527,13 @@ export default function ContactsPage() {
         ))}
       </div>
 
-      {/* Profile drawer */}
+      {/* Profile modal */}
       {showProfile && selected && (
-        <ProfileDrawer contact={selected} onClose={() => setShowProfile(false)} />
+        <ProfileModal
+          contact={selected}
+          lead={activeLead}
+          onClose={() => setShowProfile(false)}
+        />
       )}
     </div>
   )
