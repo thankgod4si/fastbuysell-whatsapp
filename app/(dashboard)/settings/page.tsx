@@ -129,9 +129,21 @@ export default function SettingsPage() {
     Promise.all([
       fetch('/api/profile').then(r => r.json()),
       fetch('/api/whatsapp/numbers').then(r => r.json()),
-    ]).then(([prof, nums]) => {
-      setProfile(prof as Partial<Profile>)
-      setWaNumbers(Array.isArray(nums) ? nums : [])
+    ]).then(([prof, nums]: [Partial<Profile>, WaNumber[]]) => {
+      setProfile(prof)
+      const list: WaNumber[] = Array.isArray(nums) ? nums : []
+      // If the profile has a WA number not yet in wa_numbers table, show it
+      if (prof.wa_phone_number_id && !list.find(n => n.phone_number_id === prof.wa_phone_number_id)) {
+        list.unshift({
+          id: '__profile__',
+          phone_number_id: prof.wa_phone_number_id,
+          phone_number: prof.wa_phone_number ?? '',
+          display_name: prof.wa_display_name ?? null,
+          is_default: true,
+          verified: prof.wa_verified ?? false,
+        })
+      }
+      setWaNumbers(list)
       setLoading(false)
     })
   }, [])
@@ -214,7 +226,7 @@ export default function SettingsPage() {
   }
 
   async function setDefaultNumber(id: string, num: WaNumber) {
-    await fetch('/api/whatsapp/numbers', {
+    if (id !== '__profile__') await fetch('/api/whatsapp/numbers', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, is_default: true }),
@@ -229,7 +241,7 @@ export default function SettingsPage() {
   }
 
   async function removeNumber(id: string, wasDefault: boolean) {
-    await fetch(`/api/whatsapp/numbers?id=${id}`, { method: 'DELETE' })
+    if (id !== '__profile__') await fetch(`/api/whatsapp/numbers?id=${id}`, { method: 'DELETE' })
     const remaining = waNumbers.filter(n => n.id !== id)
     setWaNumbers(remaining)
     if (wasDefault && remaining.length > 0) {
