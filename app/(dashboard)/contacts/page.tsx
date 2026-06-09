@@ -344,7 +344,7 @@ export default function ContactsPage() {
   }
 
   return (
-    <div className="flex flex-col" style={{ margin: '-2rem', height: '100vh', width: 'calc(100% + 4rem)' }}>
+    <div className="flex flex-col" style={{ position: 'fixed', top: 0, left: 'var(--sb-w, 16rem)', right: 0, bottom: 0, zIndex: 10 }}>
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]"
