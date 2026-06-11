@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
+import { checkCanSend } from '@/lib/usage'
 
 const BASE = 'https://graph.facebook.com/v21.0'
 const TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!
@@ -19,6 +20,13 @@ export async function POST(request: Request) {
     const authClient = await createSupabaseServerClient()
     const { data: { user } } = await authClient.auth.getUser()
     if (user) {
+      const check = await checkCanSend(user.id)
+      if (!check.allowed) {
+        return NextResponse.json({
+          error: check.reason,
+          code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached',
+        }, { status: 403 })
+      }
       const { data: profile } = await supabase
         .from('profiles')
         .select('wa_phone_number_id, wa_verified')

@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { sendLeadEmail, sendCampaignEmail } from '@/lib/email'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createMessageLog } from '@/lib/message-log'
-import { checkCanSend, trackSend } from '@/lib/usage'
+import { checkCanSend, deductCredits, trackSend } from '@/lib/usage'
 
 interface UserEmailConfig {
   apiKey?: string
@@ -41,8 +41,9 @@ export async function POST(request: Request) {
 
   const { apiKey, from, replyTo, userId } = await getUserEmailConfig()
 
+  let check: ReturnType<typeof checkCanSend> | null = null
   if (userId) {
-    const check = await checkCanSend(userId)
+    check = await checkCanSend(userId)
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
     }
@@ -74,6 +75,7 @@ export async function POST(request: Request) {
     supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', leadId),
     createMessageLog({ leadId, channel: 'email', externalId: emailId, recipient: lead.email, userId: lead.user_id }),
     userId ? trackSend(userId) : Promise.resolve(),
+    userId && (check?.remaining ?? 0) <= 0 && check?.credits && check.credits > 0 ? deductCredits(userId, 1) : Promise.resolve(),
   ])
 
   return NextResponse.json({ success: true })
@@ -109,8 +111,9 @@ export async function GET() {
       await Promise.all([
         supabase.from('leads').update({ email_sent_at: new Date().toISOString() }).eq('id', lead.id),
         createMessageLog({ leadId: lead.id, channel: 'email', externalId: data?.id, recipient: lead.email, userId: lead.user_id }),
+        userId ? trackSend(userId) : Promise.resolve(),
+        userId && (check?.remaining ?? 0) <= 0 && check?.credits && check.credits > 0 ? deductCredits(userId, 1) : Promise.resolve(),
       ])
-      if (userId) await trackSend(userId)
       sent++
     } else {
       failed.push(lead.email)

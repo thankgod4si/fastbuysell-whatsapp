@@ -2,11 +2,9 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
 export default function SignupPage() {
-  const router = useRouter()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,7 +12,7 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true)
@@ -32,22 +30,37 @@ export default function SignupPage() {
       return
     }
 
+    // Try auto-login (if email confirmation is disabled in Supabase)
+    const { error: loginError } = await supabaseBrowser.auth.signInWithPassword({ email, password })
+    setLoading(false)
+
+    if (!loginError) {
+      window.location.href = '/contacts'
+      return
+    }
+
     setDone(true)
   }
 
   if (done) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center px-6">
+      <div className="min-h-screen flex items-center justify-center px-6"
+        style={{ background: 'linear-gradient(160deg,#f0fdf4 0%,#ffffff 50%,#f0f9ff 100%)' }}>
         <div className="text-center max-w-sm">
-          <div className="w-16 h-16 rounded-2xl bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto mb-6">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6"
+            style={{ background: '#25D36615', border: '1px solid #25D36630' }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-3">Check your email</h2>
-          <p className="text-gray-400 mb-6">We sent a confirmation link to <span className="text-white font-medium">{email}</span>. Click it to activate your account.</p>
-          <Link href="/login" className="text-green-400 hover:text-green-300 font-medium text-sm">
-            Back to login →
+          <h2 className="text-2xl font-black text-[#1C1C1E] mb-3">Check your email</h2>
+          <p className="text-[#6C6C70] text-sm mb-6 leading-relaxed">
+            We sent a confirmation link to{' '}
+            <span className="font-semibold text-[#1C1C1E]">{email}</span>.
+            Click it to activate your account.
+          </p>
+          <Link href="/login" className="font-semibold text-sm hover:underline" style={{ color: '#25D366' }}>
+            Back to sign in →
           </Link>
         </div>
       </div>
@@ -55,86 +68,97 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-white flex flex-col" style={{ background: 'linear-gradient(160deg,#f0fdf4 0%,#ffffff 50%,#f0f9ff 100%)' }}>
+      {/* Nav */}
       <nav className="px-6 h-16 flex items-center">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
+        <Link href="/" className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
-              <path d="M11.5 2C6.253 2 2 6.253 2 11.5c0 1.67.444 3.237 1.22 4.594L2 22l6.094-1.196A9.459 9.459 0 0011.5 21C16.747 21 21 16.747 21 11.5S16.747 2 11.5 2z" />
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z" />
+              <path d="M12 0C5.373 0 0 5.373 0 12a11.952 11.952 0 001.636 6.062L0 24l6.134-1.612A11.944 11.944 0 0012 24c6.624 0 12-5.373 12-12S18.614 0 12 0z" />
             </svg>
           </div>
-          <span className="font-bold text-white">OutreachHQ</span>
+          <span className="font-black text-[#1C1C1E] text-base tracking-tight">OutreachHQ</span>
         </Link>
       </nav>
 
+      {/* Form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold mb-2">Create your account</h1>
-            <p className="text-gray-400">Start sending smarter outreach today</p>
+            <h1 className="text-3xl font-black text-[#1C1C1E] mb-2">Create your account</h1>
+            <p className="text-[#6C6C70] text-sm">Start sending smarter outreach today</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Full name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                required
-                placeholder="Jane Smith"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Work email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                placeholder="you@company.com"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="Min. 6 characters"
-                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500 transition-colors"
-              />
-            </div>
-
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">
-                {error}
+          <div className="rounded-3xl p-8"
+            style={{ background: 'rgba(255,255,255,0.8)', backdropFilter: 'blur(20px)', border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 8px 40px rgba(0,0,0,0.08)' }}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#6C6C70] mb-2">Full name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  required
+                  placeholder="Jane Smith"
+                  className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-3 text-[#1C1C1E] text-sm placeholder-[#C7C7CC] outline-none focus:ring-2 transition-all"
+                  style={{ '--tw-ring-color': '#25D36640' } as React.CSSProperties}
+                />
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-green-500 hover:bg-green-400 text-black font-bold py-3 rounded-xl transition-colors disabled:opacity-50 mt-2"
-            >
-              {loading ? 'Creating account...' : 'Create account'}
-            </button>
-          </form>
+              <div>
+                <label className="block text-xs font-semibold text-[#6C6C70] mb-2">Work email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  placeholder="you@company.com"
+                  className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-3 text-[#1C1C1E] text-sm placeholder-[#C7C7CC] outline-none focus:ring-2 transition-all"
+                  style={{ '--tw-ring-color': '#25D36640' } as React.CSSProperties}
+                />
+              </div>
 
-          <p className="text-center text-gray-500 text-sm mt-6">
+              <div>
+                <label className="block text-xs font-semibold text-[#6C6C70] mb-2">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  placeholder="Min. 6 characters"
+                  className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-3 text-[#1C1C1E] text-sm placeholder-[#C7C7CC] outline-none focus:ring-2 transition-all"
+                  style={{ '--tw-ring-color': '#25D36640' } as React.CSSProperties}
+                />
+              </div>
+
+              {error && (
+                <div className="rounded-xl px-4 py-3 text-sm"
+                  style={{ background: '#FF3B3010', border: '1px solid #FF3B3030', color: '#FF3B30' }}>
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full text-white font-bold py-3 rounded-2xl transition-opacity hover:opacity-90 disabled:opacity-50 mt-2"
+                style={{ background: 'linear-gradient(135deg,#25D366,#128C7E)', boxShadow: '0 4px 16px rgba(37,211,102,0.35)' }}
+              >
+                {loading ? 'Creating account…' : 'Start free trial'}
+              </button>
+            </form>
+          </div>
+
+          <p className="text-center text-[#8E8E93] text-sm mt-6">
             Already have an account?{' '}
-            <Link href="/login" className="text-green-400 hover:text-green-300 font-medium">
+            <Link href="/login" className="font-semibold hover:underline" style={{ color: '#25D366' }}>
               Sign in
             </Link>
           </p>
 
-          <p className="text-center text-gray-600 text-xs mt-4">
+          <p className="text-center text-[#C7C7CC] text-xs mt-3">
             By signing up you agree to our Terms of Service and Privacy Policy.
           </p>
         </div>

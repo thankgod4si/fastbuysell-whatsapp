@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendCampaignEmail } from '@/lib/email'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { checkCanSend, trackSend } from '@/lib/usage'
+import { checkCanSend, deductCredits, trackSend } from '@/lib/usage'
 
 export async function POST(_: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -10,9 +10,10 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   // Check subscription before blasting
   const authClient = await createSupabaseServerClient()
   const { data: { user } } = await authClient.auth.getUser()
+  let check: ReturnType<typeof checkCanSend> | null = null
 
   if (user) {
-    const check = await checkCanSend(user.id)
+    check = await checkCanSend(user.id)
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
     }
@@ -36,10 +37,15 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     return NextResponse.json({ sent: 0, message: 'No pending contacts to email' })
   }
 
+  const available = check?.status === 'active'
+    ? contacts.length
+    : Math.max(0, (check?.remaining ?? 0) + (check?.credits ?? 0))
+  const toSend = contacts.slice(0, Math.min(available, contacts.length))
+
   let sent = 0
   const failed: string[] = []
 
-  for (const contact of contacts) {
+  for (const contact of toSend) {
     const { error } = await sendCampaignEmail({
       to: contact.email,
       name: contact.name,
@@ -69,6 +75,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     await Promise.all([
       supabase.from('campaigns').update({ status: 'active' }).eq('id', id),
       user ? trackSend(user.id, sent) : Promise.resolve(),
+      user && (check?.remaining ?? 0) <= 0 && check?.credits && check.credits > 0 ? deductCredits(user.id, sent) : Promise.resolve(),
     ])
   }
 

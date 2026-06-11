@@ -13,6 +13,7 @@ const PACKS = [
 interface Profile {
   id: string
   credits: number
+  trial_sends_remaining?: number
   subscription_status: string
   messages_sent_total: number
   full_name: string | null
@@ -55,7 +56,7 @@ export default function BillingPage() {
       setUserEmail(user.email ?? '')
       const [{ data: prof }, { data: wallet }, { data: txData }] = await Promise.all([
         supabaseBrowser.from('profiles')
-          .select('id, subscription_status, messages_sent_total, full_name')
+          .select('id, subscription_status, trial_sends_remaining, messages_sent_total, full_name')
           .eq('id', user.id).single(),
         supabaseBrowser.from('wallets')
           .select('balance').eq('user_id', user.id).maybeSingle(),
@@ -63,7 +64,12 @@ export default function BillingPage() {
           .select('*').eq('user_id', user.id)
           .order('created_at', { ascending: false }).limit(20),
       ])
-      setProfile({ ...(prof as Profile), credits: (wallet?.balance ?? 0) })
+      const profileData = prof as Profile
+      const walletBalance = wallet?.balance ?? 0
+      const paidCredits = profileData.subscription_status === 'trial'
+        ? Math.max(0, walletBalance - (profileData.trial_sends_remaining ?? 0))
+        : walletBalance
+      setProfile({ ...profileData, credits: paidCredits })
       setTxs((txData ?? []) as Tx[])
       setLoading(false)
     }

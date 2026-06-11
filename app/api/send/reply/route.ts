@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { supabase } from '@/lib/supabase'
 import { sendTextMessage } from '@/lib/whatsapp'
 import { createMessageLog } from '@/lib/message-log'
+import { checkCanSend, deductCredits } from '@/lib/usage'
 
 export async function POST(request: Request) {
   const client = await createSupabaseServerClient()
@@ -27,23 +28,39 @@ export async function POST(request: Request) {
     phoneNumberId = waNum.phone_number_id
   } else {
     const { data: profile } = await supabase
-      .from('profiles').select('wa_phone_number_id').eq('id', user.id).single()
-    phoneNumberId = profile?.wa_phone_number_id ?? undefined
+      .from('profiles').select('wa_phone_number_id, wa_verified').eq('id', user.id).single()
+    if (profile?.wa_verified && profile.wa_phone_number_id) {
+      phoneNumberId = profile.wa_phone_number_id
+    }
+  }
+
+  if (!phoneNumberId) {
+    return NextResponse.json({
+      error: 'No WhatsApp number configured. Go to Settings to add and verify your number before replying.',
+      code: 'wa_number_not_configured',
+    }, { status: 403 })
+  }
+
+  const check = await checkCanSend(user.id)
+  if (!check.allowed) {
+    return NextResponse.json({
+      error: check.reason,
+      code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached',
+    }, { status: 403 })
   }
 
   console.log(`[reply] to=${contact.phone} phoneNumberId=${phoneNumberId} msg="${message.trim().slice(0,50)}"`)
   const result = await sendTextMessage(contact.phone, message.trim(), phoneNumberId)
   if ((result as { error?: { message?: string } }).error) {
     console.error(`[reply] Meta error:`, JSON.stringify((result as { error: unknown }).error))
-    return NextResponse.json({ error: (result as { error: { message?: string } }).error.message ?? 'Send failed' }, { status: 500 })
-  }
+    return NextResponse.json({ error: (result as { error: { message?: string } }).error.message ?? 'Send failed' }, { status: 500 }) }
   console.log(`[reply] sent wamid=${(result.messages as Array<{id:string}>)?.[0]?.id}`)
 
   const wamid = (result.messages as Array<{ id: string }>)?.[0]?.id
 
-  // Deduct 1 credit for the reply
-  const { deductCredits } = await import('@/lib/usage')
-  await deductCredits(user.id, 1)
+  if ((check.remaining ?? 0) <= 0 && check.credits && check.credits > 0) {
+    await deductCredits(user.id, 1)
+  }
 
   await createMessageLog({
     contactId: contact.id,

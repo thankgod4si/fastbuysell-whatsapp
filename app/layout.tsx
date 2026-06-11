@@ -4,9 +4,12 @@ import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+
 export const metadata: Metadata = {
   title: 'OutreachHQ – WhatsApp & Email Automation',
   description: 'Send WhatsApp templates and email campaigns at scale. Capture leads automatically.',
+  metadataBase: new URL(APP_URL),
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

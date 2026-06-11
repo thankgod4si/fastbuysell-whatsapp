@@ -25,10 +25,12 @@ export async function POST(request: Request) {
 
   await addCredits(user_id, amount, description ?? `Admin top-up: ${amount} credits`)
 
-  const { data: profile } = await supabase
-    .from('profiles').select('credits, full_name').eq('id', user_id).single()
+  const [{ data: profile }, { data: wallet }] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', user_id).single(),
+    supabase.from('wallets').select('balance').eq('user_id', user_id).single(),
+  ])
 
-  return NextResponse.json({ success: true, new_balance: profile?.credits ?? 0, name: profile?.full_name })
+  return NextResponse.json({ success: true, new_balance: wallet?.balance ?? 0, name: profile?.full_name })
 }
 
 // GET /api/admin/credits?user_id=xxx — get a user's credit balance + history
@@ -40,13 +42,14 @@ export async function GET(request: Request) {
   const userId = searchParams.get('user_id')
   if (!userId) return NextResponse.json({ error: 'user_id required' }, { status: 400 })
 
-  const [profileRes, txRes] = await Promise.all([
-    supabase.from('profiles').select('credits, full_name, subscription_status').eq('id', userId).single(),
+  const [profileRes, walletRes, txRes] = await Promise.all([
+    supabase.from('profiles').select('full_name, subscription_status').eq('id', userId).single(),
+    supabase.from('wallets').select('balance').eq('user_id', userId).maybeSingle(),
     supabase.from('credit_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
   ])
 
   return NextResponse.json({
-    profile: profileRes.data,
+    profile: { ...profileRes.data, credits: walletRes.data?.balance ?? 0 },
     transactions: txRes.data ?? [],
   })
 }

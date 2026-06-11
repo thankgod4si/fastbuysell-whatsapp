@@ -17,6 +17,29 @@ export async function POST() {
     }, { status: 403 })
   }
 
+  // Resolve user's own WA number — no platform fallback
+  let userPhoneId: string | undefined
+  const { data: waNum } = await supabase
+    .from('wa_numbers')
+    .select('phone_number_id')
+    .eq('user_id', user.id)
+    .eq('verified', true)
+    .eq('is_default', true)
+    .single()
+  if (waNum?.phone_number_id) {
+    userPhoneId = waNum.phone_number_id
+  } else {
+    const { data: prof } = await supabase
+      .from('profiles').select('wa_phone_number_id, wa_verified').eq('id', user.id).single()
+    if (prof?.wa_verified && prof.wa_phone_number_id) userPhoneId = prof.wa_phone_number_id
+  }
+  if (!userPhoneId) {
+    return NextResponse.json({
+      error: 'No WhatsApp number configured. Go to Settings to add and verify your number before blasting.',
+      code: 'wa_number_not_configured',
+    }, { status: 403 })
+  }
+
   // Only blast contacts belonging to this user
   const { data: contacts } = await supabase
     .from('contacts')
@@ -28,16 +51,18 @@ export async function POST() {
     return NextResponse.json({ sent: 0, message: 'No pending contacts' })
   }
 
-  // Cap blast at available credits so user can't overshoot
-  const available = check.credits ?? 0
-  const toSend = contacts.slice(0, available > 0 ? available : contacts.length)
+  // Cap blast at available trial sends + paid credits. Active users can send all pending contacts.
+  const available = check.status === 'active'
+    ? contacts.length
+    : Math.max(0, (check.remaining ?? 0) + (check.credits ?? 0))
+  const toSend = contacts.slice(0, Math.min(available, contacts.length))
 
   let sent = 0
   const failed: string[] = []
 
   for (const contact of toSend) {
     console.log(`[blast] sending to ${contact.phone}`)
-    const result = await sendInquiryTemplate(contact.phone)
+    const result = await sendInquiryTemplate(contact.phone, userPhoneId)
 
     if (!result.error) {
       await supabase
@@ -56,7 +81,7 @@ export async function POST() {
   if (sent > 0) {
     await Promise.all([
       trackSend(user.id, sent),
-      deductCredits(user.id, sent),
+      (check.remaining ?? 0) <= 0 && check.credits && check.credits > 0 ? deductCredits(user.id, sent) : Promise.resolve(),
     ])
   }
 

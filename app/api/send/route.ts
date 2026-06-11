@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { sendTemplate, sendInquiryTemplate } from '@/lib/whatsapp'
 import { createMessageLog } from '@/lib/message-log'
-import { checkCanSend, trackSend } from '@/lib/usage'
+import { checkCanSend, deductCredits, trackSend } from '@/lib/usage'
 
 export async function POST(request: Request) {
   const { contactId, templateId } = await request.json()
@@ -16,8 +16,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Message already sent to this contact' }, { status: 400 })
   }
 
+  let check: ReturnType<typeof checkCanSend> | null = null
   if (contact.user_id) {
-    const check = await checkCanSend(contact.user_id)
+    check = await checkCanSend(contact.user_id)
     if (!check.allowed) {
       return NextResponse.json({
         error: check.reason,
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Resolve which WA number to use
+  // Resolve which WA number to use — user must have their own configured number
   let phoneNumberId: string | undefined
   if (contact.user_id) {
     // Prefer the user's default number from wa_numbers table
@@ -47,6 +48,14 @@ export async function POST(request: Request) {
       if (profile?.wa_verified && profile.wa_phone_number_id) {
         phoneNumberId = profile.wa_phone_number_id
       }
+    }
+
+    // Block send — do not fall through to platform number
+    if (!phoneNumberId) {
+      return NextResponse.json({
+        error: 'No WhatsApp number configured. Go to Settings to add and verify your number before sending.',
+        code: 'wa_number_not_configured',
+      }, { status: 403 })
     }
   }
 
@@ -80,6 +89,7 @@ export async function POST(request: Request) {
     supabase.from('contacts').update({ status: 'sent', sent_at: new Date().toISOString() }).eq('id', contactId),
     createMessageLog({ contactId, channel: 'whatsapp', externalId: wamid, recipient: contact.phone, userId: contact.user_id }),
     contact.user_id ? trackSend(contact.user_id) : Promise.resolve(),
+    contact.user_id && check?.credits && check.credits > 0 && (check.remaining ?? 0) <= 0 ? deductCredits(contact.user_id) : Promise.resolve(),
   ])
 
   return NextResponse.json({ success: true })
