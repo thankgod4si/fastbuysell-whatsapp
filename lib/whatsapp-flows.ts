@@ -73,7 +73,7 @@ export async function createMetaFlow(name: string) {
   const res = await fetch(`${BASE}/${WABA_ID}/flows`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, categories: ['LEAD_GENERATION'] }),
+    body: JSON.stringify({ name, categories: ['APPOINTMENT_BOOKING'] }),
   })
   return res.json() as Promise<{ id?: string; error?: { message: string } }>
 }
@@ -372,7 +372,7 @@ export async function createAndPublishBookingFlow(params: {
     const createRes = await fetch(`${BASE}/${wid}/flows`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: `${params.businessName} Booking`, categories: ['BOOKING'] }),
+      body: JSON.stringify({ name: `${params.businessName} Booking`, categories: ['APPOINTMENT_BOOKING'] }),
     })
     const createData = await createRes.json() as { id?: string; error?: { message: string } }
     if (!createData.id) return { metaFlowId: '', error: createData.error?.message ?? 'Failed to create flow' }
