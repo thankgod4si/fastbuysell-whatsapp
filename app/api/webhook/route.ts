@@ -77,7 +77,7 @@ export async function POST(request: Request) {
         .eq('id', waOwnerId)
         .maybeSingle()
 
-      if (echoesProfile?.echoes_enabled) {
+      if (echoesProfile?.echoes_enabled && process.env.OPENAI_API_KEY) {
         const text: string = message.text?.body ?? ''
         console.log(`[echoes] AI booking for business=${waOwnerId} from=${from} text="${text.slice(0, 60)}"`)
 
