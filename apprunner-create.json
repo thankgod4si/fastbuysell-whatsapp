@@ -1,0 +1,46 @@
+{
+  "ServiceName": "OutReachhq",
+  "SourceConfiguration": {
+    "CodeRepository": {
+      "RepositoryUrl": "https://github.com/thankgod4si/fastbuysell-whatsapp",
+      "SourceCodeVersion": {
+        "Type": "BRANCH",
+        "Value": "main"
+      },
+      "CodeConfiguration": {
+        "ConfigurationSource": "API",
+        "CodeConfigurationValues": {
+          "Runtime": "NODEJS_22",
+          "BuildCommand": "npm ci && npm run build",
+          "StartCommand": "npm start",
+          "Port": "3000",
+          "RuntimeEnvironmentVariables": {
+            "NODE_ENV": "production",
+            "NEXT_PUBLIC_SUPABASE_URL": "https://txzktkbhcesmenhdubsi.supabase.co",
+            "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4emt0a2JoY2VzbWVuaGR1YnNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA4NTE3MTksImV4cCI6MjA5NjQyNzcxOX0.l3q1GzenmwyFUYV37JDV1wFgZIWn2vbAZoujhNNvnJg",
+            "SUPABASE_SERVICE_ROLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4emt0a2JoY2VzbWVuaGR1YnNpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MDg1MTcxOSwiZXhwIjoyMDk2NDI3NzE5fQ.Z2wXG7T9rIqMdXfINGVzAzX_tTOlyCoKbkF1KOct9gg",
+            "WHATSAPP_PHONE_NUMBER_ID": "1151743088022928",
+            "WHATSAPP_BUSINESS_ACCOUNT_ID": "1731109384735890",
+            "WHATSAPP_ACCESS_TOKEN": "EAAO5GfOAzGYBQtZCI7hEqy6Cy5GZCBcFlklWGBmAvqaZBhb0G8EOL7iO0GXvLRxRqI97kesdy4T86AZB3TMhtKC43t2o48JY1WcdGDdYRlKw1fMZBYsnEA0WmedJtdb5JyrnK85HGfQ82B1GqUa2iQt6kB1rZA6ZCik9cXiFZAUNsMNWvpzGy3cdNJrLY949PwZDZD",
+            "WHATSAPP_WEBHOOK_VERIFY_TOKEN": "fastbuysell_webhook_2024",
+            "WHATSAPP_FLOW_ID": "1496946421339540",
+            "RESEND_API_KEY": "re_Jz9g3LT8_7MBL9x2XDC19xNwShdGSH9Nf",
+            "EMAIL_FROM": "Fast Buy & Sell <hello@trysofi.co>",
+            "BREVO_SMS_SENDER": "FastBuySell",
+            "CRON_SECRET": "fastbuysell_cron_2024",
+            "NEXT_PUBLIC_APP_URL": "https://rwpmy4ab2u.us-east-1.awsapprunner.com"
+          }
+        }
+      }
+    },
+    "AutoDeploymentsEnabled": true,
+    "AuthenticationConfiguration": {
+      "ConnectionArn": "__REPLACE_CONNECTION_ARN__"
+    }
+  },
+  "InstanceConfiguration": {
+    "Cpu": "1 vCPU",
+    "Memory": "2 GB"
+  }
+}
+
