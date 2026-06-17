@@ -35,7 +35,7 @@
     },
     "AutoDeploymentsEnabled": true,
     "AuthenticationConfiguration": {
-      "ConnectionArn": "__REPLACE_CONNECTION_ARN__"
+      "ConnectionArn": "arn:aws:apprunner:us-east-1:751702759480:connection/Viewweb/bcd10c183ca9450c81d491ae9d8b3f"
     }
   },
   "InstanceConfiguration": {
