@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { supabaseBrowser } from '@/lib/supabase-browser'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -53,15 +52,14 @@ export default function CatalogPage() {
   async function handleImageFile(file: File) {
     setImgUploading(true)
     try {
-      const ext = file.name.split('.').pop()
-      const path = `products/${Date.now()}.${ext}`
-      const { data: uploadData, error } = await supabaseBrowser.storage.from('product-images').upload(path, file, { upsert: true })
-      if (error) throw error
-      const { data: { publicUrl } } = supabaseBrowser.storage.from('product-images').getPublicUrl(uploadData.path)
-      setForm(f => ({ ...f, image_url: publicUrl }))
-    } catch {
-      // Storage bucket not configured — user can paste URL manually
-      alert('Image upload failed. Please paste an image URL instead.')
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: fd })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Upload failed')
+      setForm(f => ({ ...f, image_url: data.url }))
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Upload failed. Please paste an image URL instead.')
     } finally {
       setImgUploading(false)
     }
