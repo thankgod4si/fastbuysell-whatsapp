@@ -7,7 +7,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center text-black font-black text-sm">A</div>
-            <span className="text-white font-bold text-sm">Fast Buy &amp; Sell</span>
+            <span className="text-white font-bold text-sm">OutreachHQ</span>
             <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2.5 py-0.5 rounded-full font-semibold">Admin</span>
           </div>
           <div className="flex items-center gap-1 ml-4">

@@ -10,7 +10,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   // Check subscription before blasting
   const authClient = await createSupabaseServerClient()
   const { data: { user } } = await authClient.auth.getUser()
-  let check: ReturnType<typeof checkCanSend> | null = null
+  let check: Awaited<ReturnType<typeof checkCanSend>> | null = null
 
   if (user) {
     check = await checkCanSend(user.id)

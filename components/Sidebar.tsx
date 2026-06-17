@@ -27,6 +27,10 @@ function SvgIcon({ d, size = 16, strokeWidth = 1.8 }: { d: PathOrPaths; size?: n
 
 const ICON = {
   dashboard:  ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M9 22V12h6v10'],
+  calendar:   ['M8 2v4', 'M16 2v4', 'M3 10h18', 'M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z'],
+  chart:      ['M18 20V10', 'M12 20V4', 'M6 20v-6'],
+  megaphone:  ['M3 11l19-9-9 19-2-8-8-2z'],
+  robot:      ['M12 2a2 2 0 0 1 2 2v2H10V4a2 2 0 0 1 2-2z', 'M5 8h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z', 'M9 13h2', 'M13 13h2'],
   whatsapp:   'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z',
   leads:      ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
   sms:        ['M22 2 11 13', 'M22 2 15 22l-4-9-9-4 20-7'],
@@ -53,15 +57,30 @@ const ICON = {
 type NavItem = { group: string | null; href: string; label: string; icon: PathOrPaths; color: string }
 
 const NAV: NavItem[] = [
-  { group: null,        href: '/dashboard', label: 'Dashboard',       icon: ICON.dashboard, color: '#007AFF' },
-  { group: 'Channels',  href: '/contacts',  label: 'WhatsApp',        icon: ICON.whatsapp,  color: '#25D366' },
-  { group: 'Channels',  href: '/leads',     label: 'Leads / CRM',     icon: ICON.leads,     color: '#34C759' },
-  { group: 'Channels',  href: '/sms',       label: 'SMS',             icon: ICON.sms,       color: '#FF9500' },
-  { group: 'Channels',  href: '/campaigns', label: 'Email',           icon: ICON.email,     color: '#AF52DE' },
-  { group: 'Channels',  href: '/templates', label: 'Templates',       icon: ICON.templates, color: '#5856D6' },
-  { group: 'Analytics', href: '/logs',      label: 'Activity Logs',   icon: ICON.logs,      color: '#8E8E93' },
-  { group: 'Account',   href: '/billing',   label: 'Wallet & Credits',icon: ICON.billing,   color: '#34C759' },
-  { group: 'Account',   href: '/settings',  label: 'Settings',        icon: ICON.settings,  color: '#8E8E93' },
+  { group: null,         href: '/dashboard',  label: 'Dashboard',         icon: ICON.dashboard, color: '#007AFF' },
+  // ── Bookings ─────────────────────────────────────────────────────────────
+  { group: 'Bookings',   href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#8B5CF6' },
+  { group: 'Bookings',   href: '/leads',      label: 'Customers',         icon: ICON.leads,     color: '#007AFF' },
+  // ── Inbox ────────────────────────────────────────────────────────────────
+  { group: 'Inbox',      href: '/inbox',      label: 'Unified Inbox',     icon: ICON.logs,      color: '#25D366' },
+  // ── Outreach ─────────────────────────────────────────────────────────────
+  { group: 'Outreach',   href: '/contacts',   label: 'WhatsApp Blast',    icon: ICON.whatsapp,  color: '#25D366' },
+  { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#AF52DE' },
+  { group: 'Outreach',   href: '/sms',        label: 'SMS Blast',         icon: ICON.sms,       color: '#FF9500' },
+  { group: 'Outreach',   href: '/marketing',  label: 'Meta Ads',          icon: ICON.megaphone, color: '#FF9500' },
+  // ── Automation ───────────────────────────────────────────────────────────
+  { group: 'Automation', href: '/rules',      label: 'Auto Replies',      icon: ICON.zap,       color: '#FF9500' },
+  { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#AF52DE' },
+  // ── Connect ───────────────────────────────────────────────────────────────
+  { group: 'Connect',    href: '/meta',          label: 'Meta & WhatsApp',   icon: ICON.phone,     color: '#007AFF' },
+  { group: 'Connect',    href: '/catalog',       label: 'Products',          icon: ICON.templates, color: '#AF52DE' },
+  { group: 'Connect',    href: '/flow-builder',  label: 'Booking Flow',      icon: ICON.zap,       color: '#8B5CF6' },
+  { group: 'Connect',    href: '/templates',     label: 'Templates',         icon: ICON.templates, color: '#5856D6' },
+  // ── Analytics ────────────────────────────────────────────────────────────
+  { group: 'Analytics',  href: '/logs',       label: 'Delivery Feed',     icon: ICON.robot,     color: '#8E8E93' },
+  // ── Account ───────────────────────────────────────────────────────────────
+  { group: 'Account',    href: '/billing',    label: 'Credits & Billing', icon: ICON.billing,   color: '#34C759' },
+  { group: 'Account',    href: '/settings',   label: 'Settings',          icon: ICON.settings,  color: '#8E8E93' },
 ]
 
 const NAV_GROUPS = Array.from(new Set(NAV.map(i => i.group).filter(Boolean))) as string[]
@@ -144,7 +163,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         .single()
       if (data) {
         const { data: wallet } = await supabaseBrowser.from('wallets').select('balance').eq('user_id', user.id).maybeSingle()
-        setProfile({ ...(data as Profile), credits: wallet?.balance ?? 0 })
+        const walletBalance = wallet?.balance ?? 0
+        const paidCredits = data.subscription_status === 'trial'
+          ? Math.max(0, walletBalance - (data.trial_sends_remaining ?? 0))
+          : walletBalance
+        setProfile({ ...(data as Profile), credits: paidCredits })
       }
     }
     load()
@@ -155,8 +178,10 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     router.push('/login')
   }
 
-  const isActive = (href: string) =>
-    pathname === href || (href !== '/dashboard' && pathname.startsWith(href))
+  const isActive = (href: string) => {
+    const base = href.split('?')[0]
+    return pathname === base || (base !== '/dashboard' && pathname.startsWith(base))
+  }
 
   const status = profile?.subscription_status
   const banner = status && status !== 'active' ? STATUS_BANNER[status] : null
@@ -185,8 +210,8 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[#1C1C1E] font-bold text-sm leading-tight">Fast Buy &amp; Sell</p>
-              <p className="text-[#8E8E93] text-xs mt-0.5">Outreach Platform</p>
+              <p className="text-[#1C1C1E] font-bold text-sm leading-tight">OutreachHQ</p>
+              <p className="text-[#8E8E93] text-xs mt-0.5">AI Booking & Outreach</p>
             </div>
           </>
         )}
@@ -199,13 +224,13 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </button>
       </div>
 
-      {/* Buy Number CTA */}
+      {/* Configure AI CTA */}
       {!collapsed && (
-        <Link href="/settings#whatsapp"
+        <Link href="/bookings"
           className="mx-3 mt-3 flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl transition-opacity hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg,#25D366,#128C7E)', boxShadow: '0 3px 10px rgba(37,211,102,0.25)' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm5 11h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/></svg>
-          <span className="text-white text-xs font-bold">Buy WA Number</span>
+          style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)', boxShadow: '0 3px 10px rgba(139,92,246,0.3)' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="white"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <span className="text-white text-xs font-bold">AI Booking Active</span>
         </Link>
       )}
 

@@ -39,9 +39,7 @@ export async function GET() {
   const users = authUsers.map(u => {
     const p = profileMap.get(u.id)
     const walletBalance = walletMap.get(u.id) ?? 0
-    const paidCredits = p?.subscription_status === 'trial'
-      ? Math.max(0, walletBalance - (p?.trial_sends_remaining ?? 0))
-      : walletBalance
+    const paidCredits = walletBalance
     return {
       id: u.id,
       email: u.email ?? '',

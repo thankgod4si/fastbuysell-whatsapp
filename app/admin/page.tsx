@@ -238,12 +238,17 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5 text-right">
                       {u.subscription_status === 'active' ? (
                         <span className="text-green-400 text-xs font-semibold">Unlimited</span>
+                      ) : u.subscription_status === 'trial' ? (
+                        <div className="space-y-1 text-right">
+                          <span className={`text-xs font-mono font-bold ${u.credits > 0 ? 'text-white' : 'text-gray-400'}`}>
+                            {u.credits} paid
+                          </span>
+                          <span className={`text-xs font-mono font-bold ${u.trial_sends_remaining <= 3 ? 'text-red-400' : 'text-amber-400'}`}>
+                            {u.trial_sends_remaining} trial
+                          </span>
+                        </div>
                       ) : u.credits > 0 ? (
                         <span className="text-xs font-mono font-bold text-white">{u.credits}</span>
-                      ) : u.subscription_status === 'trial' ? (
-                        <span className={`text-xs font-mono font-bold ${u.trial_sends_remaining <= 3 ? 'text-red-400' : 'text-amber-400'}`}>
-                          {u.trial_sends_remaining}
-                        </span>
                       ) : (
                         <span className="text-gray-600 text-xs">—</span>
                       )}

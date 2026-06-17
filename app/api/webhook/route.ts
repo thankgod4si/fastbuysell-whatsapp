@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendFlowMessage } from '@/lib/whatsapp'
 import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
+import { sendTextMessage } from '@/lib/whatsapp'
+import { loadBusinessContext, getOrCreateSession, processBookingMessage } from '@/lib/ai-booking'
+import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/lib/sofi'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
@@ -62,6 +66,115 @@ export async function POST(request: Request) {
       }
       console.log(`[webhook] waOwnerId=${waOwnerId} for bizId=${businessPhoneNumberId}`)
     }
+
+    // ── ECHOES: AI Booking intercept ────────────────────────────────────────
+    // If this phone number belongs to an Echoes-enabled business, route to the
+    // AI booking engine and skip the legacy FastBuySell flow entirely.
+    if (waOwnerId && message.type === 'text') {
+      const { data: echoesProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('echoes_enabled')
+        .eq('id', waOwnerId)
+        .maybeSingle()
+
+      if (echoesProfile?.echoes_enabled) {
+        const text: string = message.text?.body ?? ''
+        console.log(`[echoes] AI booking for business=${waOwnerId} from=${from} text="${text.slice(0, 60)}"`)
+
+        try {
+          const [ctx, session] = await Promise.all([
+            loadBusinessContext(waOwnerId, businessPhoneNumberId ?? ''),
+            getOrCreateSession(waOwnerId, from),
+          ])
+
+          if (ctx) {
+            // Save inbound message to logs
+            await saveInboundMessage({ phone: from, content: text, msgType: 'text', userId: waOwnerId })
+
+            const isFirstMessage = session.state === 'greeting'
+
+            if (isFirstMessage && ctx.booking_flow_id) {
+              // New customer (or returning) → send greeting + booking flow in WhatsApp
+              const greeting = `Hi${waName ? ` ${waName.split(' ')[0]}` : ''}! 👋 Welcome to *${ctx.display_name}*.\n\nTap the button below to book your appointment — choose your service, pick a time, and select how you'd like to pay. It takes less than 30 seconds! 🚀`
+              await sendTextMessage(from, greeting, businessPhoneNumberId)
+              await sendFlowMessage(from, businessPhoneNumberId, {
+                metaFlowId: ctx.booking_flow_id,
+                screen: 'BOOKING',
+                ctaText: 'Book Now ✨',
+                bodyText: `Pick your service and confirm your booking at ${ctx.display_name}`,
+              })
+              // Update session state so we don't re-send the flow on every message
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+            } else {
+              // Ongoing conversation — let AI continue naturally
+              const { intent, updatedSession } = await processBookingMessage(text, ctx, session)
+              console.log(`[echoes] intent.action=${intent.action} state=${updatedSession.state}`)
+              await sendTextMessage(from, intent.reply_to_customer, businessPhoneNumberId)
+
+              // Legacy: if AI collected all details via text chat, trigger payment
+              if (updatedSession.state === 'payment_sent') {
+                const d = updatedSession.collected_data
+                const serviceId = d.service_id
+                const service   = ctx.services.find(s => s.id === serviceId)
+                const amount    = service ? service.price * 100 : Number(d.service_price ?? 0) * 100
+                const currency  = service?.currency ?? 'NGN'
+                const ref       = generateReference(session.id)
+
+                const { data: booking } = await supabaseAdmin
+                  .from('bookings')
+                  .insert({
+                    business_id:      waOwnerId,
+                    session_id:       session.id,
+                    customer_name:    d.customer_name ?? waName ?? 'Customer',
+                    customer_phone:   from,
+                    service_id:       serviceId!,
+                    appointment_date: d.preferred_date!,
+                    time_slot:        d.preferred_time!,
+                    payment_status:   'pending',
+                  })
+                  .select('id')
+                  .single()
+
+                await supabaseAdmin.from('booking_transactions').insert({
+                  business_id:              waOwnerId,
+                  booking_id:               booking?.id ?? null,
+                  amount:                   service?.price ?? 0,
+                  currency,
+                  reference:                ref,
+                  payment_gateway_provider: 'sofi',
+                  status:                   'pending',
+                })
+
+                const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+                const payResult = await generatePaymentLink({
+                  amount, currency, reference: ref,
+                  customer_phone: from, customer_name: d.customer_name ?? 'Customer',
+                  description:    `Booking: ${service?.name ?? d.service_name} at ${ctx.display_name}`,
+                  metadata:       { booking_session_id: session.id, business_id: waOwnerId, service_name: service?.name ?? '' },
+                  callback_url:   `${appUrl}/api/webhooks/sofi`,
+                })
+
+                if (payResult.success) {
+                  await sendTextMessage(from, formatPaymentMessage({
+                    customerName: d.customer_name ?? 'there', serviceName: service?.name ?? d.service_name ?? '',
+                    amount: service?.price ?? 0, currency, appointmentDate: d.preferred_date!, appointmentTime: d.preferred_time!,
+                    paymentLink: payResult.payment_link, virtualAccount: payResult.virtual_account, businessName: ctx.display_name,
+                  }), businessPhoneNumberId)
+                } else {
+                  await sendTextMessage(from, `Sorry, I had trouble generating your payment link. Please try again! 🙏`, businessPhoneNumberId)
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error('[echoes] AI booking error:', err)
+          await sendTextMessage(from, `Hi! I'm having a quick technical moment. Please send your message again! 😊`, businessPhoneNumberId)
+        }
+
+        return NextResponse.json({ status: 'ok' })
+      }
+    }
+    // ── END ECHOES intercept ─────────────────────────────────────────────────
 
     // ── KEY ROUTING CHANGE ───────────────────────────────────────────────────
     // Find ALL contacts with this phone that have been blasted (across every user).
@@ -139,10 +252,42 @@ export async function POST(request: Request) {
         console.log(`[webhook] saving text userId=${c.user_id} contactId=${c.id}`)
         await saveInboundMessage({ contactId: c.id, phone: from, content: text, msgType: 'text', userId: c.user_id })
 
-        // Send auto-reply flow and update status for each target
-        if (['sent', 'delivered', 'read'].includes(c.status)) {
-          await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(c.user_id))
-          await supabase.from('contacts').update({ status: 'replied' }).eq('id', c.id!)
+        // Evaluate triggers for auto-reply (whatsapp or any)
+        const { data: triggers } = await supabase
+          .from('triggers')
+          .select('*')
+          .eq('active', true)
+          .in('channel', ['whatsapp', 'any'])
+          .or(`linked_account_id.is.null,user_id.eq.${c.user_id}`)
+
+        let matched = null
+        if (triggers && Array.isArray(triggers)) {
+          for (const t of triggers) {
+            try {
+              const kw = String(t.keyword || '')
+              const mt = t.match_type || 'contains'
+              if (mt === 'contains' && text.toLowerCase().includes(kw.toLowerCase())) { matched = t; break }
+              if (mt === 'exact' && text.trim().toLowerCase() === kw.toLowerCase()) { matched = t; break }
+              if (mt === 'regex') { const re = new RegExp(kw, 'i'); if (re.test(text)) { matched = t; break } }
+            } catch (e) { continue }
+          }
+        }
+
+        if (matched && matched.auto_send) {
+          const reply = String(matched.reply_template || '').replace(/{{\s*link\s*}}/gi, '')
+          try {
+            await sendTextMessage(from, reply, businessPhoneNumberId)
+            await supabase.from('contacts').update({ status: 'replied' }).eq('id', c.id!)
+            await supabase.from('message_logs').insert({ channel: 'whatsapp', direction: 'outbound', recipient: from, content: reply, msg_type: 'auto_reply', status: 'sent', sent_at: new Date().toISOString(), user_id: c.user_id })
+          } catch (err) {
+            console.error('[webhook] whatsapp auto-reply failed', err)
+          }
+        } else {
+          // Send auto-reply flow and update status for each target
+          if (['sent', 'delivered', 'read'].includes(c.status)) {
+            await sendFlowMessage(from, businessPhoneNumberId, await resolveFlowOpts(c.user_id))
+            await supabase.from('contacts').update({ status: 'replied' }).eq('id', c.id!)
+          }
         }
       }
     }
@@ -151,6 +296,117 @@ export async function POST(request: Request) {
     if (message.type === 'interactive' && message.interactive?.type === 'nfm_reply') {
       const flowData = JSON.parse(message.interactive.nfm_reply.response_json)
 
+      // ── Booking flow submission (Echoes AI) ───────────────────────────────
+      // Booking flows embed the business user.id as flow_db_id in the payload.
+      // service_id, customer_name, preferred_date, preferred_time, payment_method are present.
+      const isBookingFlow = Boolean(flowData.service_id && flowData.payment_method)
+      if (isBookingFlow && flowData.flow_db_id && businessPhoneNumberId) {
+        const bookingBusinessId: string = flowData.flow_db_id
+        try {
+          // Load the business's profile for bank details + display name
+          const { data: bProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('business_display_name, bank_name, account_number, account_name')
+            .eq('id', bookingBusinessId)
+            .maybeSingle()
+
+          // Find the product/service selected
+          const serviceId: string = flowData.service_id
+          const { data: svc } = await supabaseAdmin
+            .from('products')
+            .select('id, name, price, currency')
+            .eq('id', serviceId)
+            .maybeSingle()
+          // Fallback to services_menu
+          const { data: svcMenu } = svc ? { data: null } : await supabaseAdmin
+            .from('services_menu')
+            .select('id, service_name, price, currency')
+            .eq('id', serviceId)
+            .maybeSingle()
+          const serviceName = svc?.name ?? svcMenu?.service_name ?? 'Service'
+          const servicePrice = Number(svc?.price ?? svcMenu?.price ?? 0)
+          const currency     = svc?.currency ?? svcMenu?.currency ?? 'NGN'
+          const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
+          const sym = SYM[currency] ?? currency
+
+          const customerName: string  = flowData.customer_name ?? waName ?? 'Customer'
+          const preferredDate: string = flowData.preferred_date ?? ''
+          const preferredTime: string = flowData.preferred_time ?? ''
+          const paymentMethod: string = flowData.payment_method ?? 'transfer'
+
+          // Create pending booking
+          const ref = generateReference(bookingBusinessId.slice(0, 8))
+          const { data: booking } = await supabaseAdmin
+            .from('bookings')
+            .insert({
+              business_id:      bookingBusinessId,
+              customer_name:    customerName,
+              customer_phone:   from,
+              service_id:       serviceId,
+              appointment_date: preferredDate,
+              time_slot:        preferredTime,
+              payment_status:   'pending',
+            })
+            .select('id')
+            .single()
+
+          await supabaseAdmin.from('booking_transactions').insert({
+            business_id:              bookingBusinessId,
+            booking_id:               booking?.id ?? null,
+            amount:                   servicePrice,
+            currency,
+            reference:                ref,
+            payment_gateway_provider: paymentMethod === 'card' ? 'sofi' : 'manual',
+            status:                   'pending',
+          })
+
+          await saveInboundMessage({
+            phone: from, content: `Booking: ${serviceName} on ${preferredDate} at ${preferredTime}`,
+            msgType: 'form_submission', userId: bookingBusinessId,
+          })
+
+          const displayName = bProfile?.business_display_name ?? 'us'
+
+          if (paymentMethod === 'transfer') {
+            // Reply with business bank account details
+            const bankName  = bProfile?.bank_name     ?? '(bank not set)'
+            const accNum    = bProfile?.account_number ?? '(account not set)'
+            const accName   = bProfile?.account_name  ?? displayName
+            const msg = `✅ *Booking Confirmed!*\n\n` +
+              `📋 *${serviceName}*\n` +
+              `📅 ${preferredDate} at ${preferredTime}\n\n` +
+              `To complete your booking, please transfer *${sym}${servicePrice.toLocaleString()}* to:\n\n` +
+              `🏦 *Bank:* ${bankName}\n` +
+              `📟 *Account Number:* ${accNum}\n` +
+              `👤 *Account Name:* ${accName}\n\n` +
+              `Send a screenshot of your payment here once done and we'll confirm your appointment! 🙏`
+            await sendTextMessage(from, msg, businessPhoneNumberId)
+          } else {
+            // Generate Sofi card payment link
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+            const payResult = await generatePaymentLink({
+              amount:          servicePrice * 100,
+              currency,        reference: ref,
+              customer_phone:  from, customer_name: customerName,
+              description:     `Booking: ${serviceName} at ${displayName}`,
+              metadata:        { booking_id: booking?.id ?? '', business_id: bookingBusinessId },
+              callback_url:    `${appUrl}/api/webhooks/sofi`,
+            })
+            if (payResult.success) {
+              const msg = `✅ *Booking Confirmed!*\n\n📋 *${serviceName}*\n📅 ${preferredDate} at ${preferredTime}\n\nPay securely with your card here:\n${payResult.payment_link}\n\nYour appointment is held for 30 minutes ⏳`
+              await sendTextMessage(from, msg, businessPhoneNumberId)
+            } else {
+              await sendTextMessage(from, `Booking received! We'll send your payment link shortly.`, businessPhoneNumberId)
+            }
+          }
+        } catch (err) {
+          console.error('[echoes] booking flow nfm_reply error:', err)
+          await sendTextMessage(from, `Thanks! We received your booking request and will confirm shortly. 🙏`, businessPhoneNumberId)
+        }
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // ── Legacy outreach lead form submission ──────────────────────────────
       // Resolve which user owns this form via flow_db_id (most accurate)
       let formUserId: string | null = null
       const flowDbId: string | null = flowData.flow_db_id ?? null

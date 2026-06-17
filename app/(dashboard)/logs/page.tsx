@@ -7,6 +7,7 @@ const CHANNEL_META: Record<MessageLog['channel'], { icon: string; label: string;
   whatsapp: { icon: '💬', label: 'WhatsApp', color: '#25D366' },
   email:    { icon: '✉️', label: 'Email',    color: '#AF52DE' },
   sms:      { icon: '📱', label: 'SMS',      color: '#FF9500' },
+  social:   { icon: '🗨️', label: 'Social',   color: '#34C759' },
 }
 
 const STATUS_META: Record<MessageLog['status'], { label: string; color: string; dot: string }> = {
@@ -113,7 +114,7 @@ export default function LogsPage() {
 
         {/* Channel filter */}
         <div className="flex bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          {(['all', 'whatsapp', 'sms', 'email'] as const).map(c => (
+          {(['all', 'whatsapp', 'sms', 'email', 'social'] as const).map(c => (
             <button key={c} onClick={() => setChannelFilter(c)}
               className={`px-3.5 py-2.5 text-xs font-semibold transition-colors ${channelFilter === c ? 'text-white' : 'text-[#8E8E93] hover:text-[#1C1C1E]'}`}
               style={channelFilter === c ? { background: c === 'all' ? '#5856D6' : CHANNEL_META[c as MessageLog['channel']].color } : {}}>

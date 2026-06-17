@@ -17,6 +17,11 @@ const PROFILE_FIELDS = [
   'trial_sends_remaining',
   'messages_sent_total',
   'is_admin',
+  'booking_flow_id',
+  'business_display_name',
+  'bank_name',
+  'account_number',
+  'account_name',
 ].join(',')
 
 export async function GET() {

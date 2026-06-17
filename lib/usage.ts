@@ -21,7 +21,7 @@ export async function checkCanSend(userId: string): Promise<SubscriptionCheck> {
   const remaining     = (data.trial_sends_remaining as number) ?? 0
   const planLimit     = (data.plan_messages_limit as number) ?? 0
   const walletBalance = (wallet?.balance as number) ?? 0
-  const paidCredits   = status === 'trial' ? Math.max(0, walletBalance - remaining) : walletBalance
+  const paidCredits   = walletBalance
 
   if (status === 'pending_approval') {
     return { allowed: false, reason: 'Your account is pending approval. An admin will review and activate it shortly.', status, remaining, credits: paidCredits, planLimit }

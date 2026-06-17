@@ -66,9 +66,7 @@ export default function BillingPage() {
       ])
       const profileData = prof as Profile
       const walletBalance = wallet?.balance ?? 0
-      const paidCredits = profileData.subscription_status === 'trial'
-        ? Math.max(0, walletBalance - (profileData.trial_sends_remaining ?? 0))
-        : walletBalance
+      const paidCredits = walletBalance
       setProfile({ ...profileData, credits: paidCredits })
       setTxs((txData ?? []) as Tx[])
       setLoading(false)

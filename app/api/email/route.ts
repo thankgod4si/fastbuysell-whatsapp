@@ -41,7 +41,7 @@ export async function POST(request: Request) {
 
   const { apiKey, from, replyTo, userId } = await getUserEmailConfig()
 
-  let check: ReturnType<typeof checkCanSend> | null = null
+  let check: Awaited<ReturnType<typeof checkCanSend>> | null = null
   if (userId) {
     check = await checkCanSend(userId)
     if (!check.allowed) {
@@ -84,8 +84,9 @@ export async function POST(request: Request) {
 export async function GET() {
   const { apiKey, from: emailFrom, replyTo, userId } = await getUserEmailConfig()
 
+  let check: Awaited<ReturnType<typeof checkCanSend>> | null = null
   if (userId) {
-    const check = await checkCanSend(userId)
+    check = await checkCanSend(userId)
     if (!check.allowed) {
       return NextResponse.json({ error: check.reason, code: check.status === 'suspended' ? 'account_suspended' : 'trial_limit_reached' }, { status: 403 })
     }

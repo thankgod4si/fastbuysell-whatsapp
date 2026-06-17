@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Message already sent to this contact' }, { status: 400 })
   }
 
-  let check: ReturnType<typeof checkCanSend> | null = null
+  let check: Awaited<ReturnType<typeof checkCanSend>> | null = null
   if (contact.user_id) {
     check = await checkCanSend(contact.user_id)
     if (!check.allowed) {

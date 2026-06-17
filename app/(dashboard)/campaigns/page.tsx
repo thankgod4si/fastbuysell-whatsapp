@@ -199,7 +199,7 @@ export default function CampaignsPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-[#8E8E93]">
-                  <span>From: <span className="text-[#1C1C1E] font-medium">Fast Buy &amp; Sell</span></span>
+                  <span>From: <span className="text-[#1C1C1E] font-medium">OutreachHQ</span></span>
                   <span>Reply-to: <span className="text-[#1C1C1E] font-medium">{selected.reply_to}</span></span>
                   <span className="ml-auto">{new Date(selected.created_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                 </div>

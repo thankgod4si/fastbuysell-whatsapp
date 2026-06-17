@@ -46,7 +46,7 @@ export interface Lead {
 
 // Message delivery logs
 export type MessageLogStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'bounced' | 'opened'
-export type MessageLogChannel = 'whatsapp' | 'email' | 'sms'
+export type MessageLogChannel = 'whatsapp' | 'email' | 'sms' | 'social'
 
 export interface MessageLog {
   id: string
@@ -61,6 +61,9 @@ export interface MessageLog {
   read_at: string | null
   failed_at: string | null
   failure_reason: string | null
+  direction: 'inbound' | 'outbound'
+  msg_type: string
+  content: string | null
   user_id: string | null
   created_at: string
 }
@@ -86,5 +89,17 @@ export interface CampaignContact {
   email: string
   status: CampaignContactStatus
   sent_at: string | null
+  created_at: string
+}
+
+export interface CommentTrigger {
+  id: string
+  user_id: string | null
+  platform: 'instagram' | 'facebook'
+  page_id: string | null
+  post_id?: string | null
+  link_url: string
+  reply_template: string
+  active: boolean
   created_at: string
 }
