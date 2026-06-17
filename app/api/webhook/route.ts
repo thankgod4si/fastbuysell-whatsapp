@@ -298,8 +298,8 @@ export async function POST(request: Request) {
 
       // ── Booking flow submission (Echoes AI) ───────────────────────────────
       // Booking flows embed the business user.id as flow_db_id in the payload.
-      // service_id, customer_name, preferred_date, preferred_time, payment_method are present.
-      const isBookingFlow = Boolean(flowData.service_id && flowData.payment_method)
+      // service_id, customer_name, preferred_date, preferred_time are in booking flow submissions
+      const isBookingFlow = Boolean(flowData.service_id && flowData.customer_name)
       if (isBookingFlow && flowData.flow_db_id && businessPhoneNumberId) {
         const bookingBusinessId: string = flowData.flow_db_id
         try {
@@ -332,7 +332,8 @@ export async function POST(request: Request) {
           const customerName: string  = flowData.customer_name ?? waName ?? 'Customer'
           const preferredDate: string = flowData.preferred_date ?? ''
           const preferredTime: string = flowData.preferred_time ?? ''
-          const paymentMethod: string = flowData.payment_method ?? 'transfer'
+          // Payment method chosen via interactive button reply (sent below)
+          // paymentMethod no longer in flow payload
 
           // Create pending booking
           const ref = generateReference(bookingBusinessId.slice(0, 8))
@@ -356,7 +357,8 @@ export async function POST(request: Request) {
             amount:                   servicePrice,
             currency,
             reference:                ref,
-            payment_gateway_provider: paymentMethod === 'card' ? 'sofi' : 'manual',
+            payment_gateway_provider: null, // set when customer selects payment
+
             status:                   'pending',
           })
 
@@ -366,6 +368,38 @@ export async function POST(request: Request) {
           })
 
           const displayName = bProfile?.business_display_name ?? 'us'
+
+          // Send interactive payment choice buttons (card / transfer / USSD)
+          const payButtonBody =
+            `Great choice! I've booked you for *${preferredDate}* at *${preferredTime}* for a *${serviceName}*.\n\n` +
+            `To confirm your appointment, please complete payment of *${sym}${servicePrice.toLocaleString()}*.\n\n` +
+            `Choose your preferred payment method below:`
+
+          await fetch(`https://graph.facebook.com/v21.0/${businessPhoneNumberId}/messages`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: from,
+              type: 'interactive',
+              interactive: {
+                type: 'button',
+                body: { text: payButtonBody },
+                action: {
+                  buttons: [
+                    { type: 'reply', reply: { id: `pay_card___${serviceId}`, title: 'Pay with Card' } },
+                    { type: 'reply', reply: { id: `pay_transfer___${serviceId}`, title: 'Bank Transfer' } },
+                    { type: 'reply', reply: { id: `pay_ussd___${serviceId}`, title: 'Pay with USSD' } },
+                  ],
+                },
+              },
+            }),
+          })
+
+          return NextResponse.json({ status: 'ok' })
 
           if (paymentMethod === 'transfer') {
             // Reply with business bank account details
@@ -402,6 +436,78 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error('[echoes] booking flow nfm_reply error:', err)
           await sendTextMessage(from, `Thanks! We received your booking request and will confirm shortly. 🙏`, businessPhoneNumberId)
+    } // end nfm_reply
+
+    // ── Payment button reply handler ──────────────────────────────────────────
+    if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
+      const btnId: string = message.interactive?.button_reply?.id ?? ''
+
+      if (btnId.startsWith('pay_card___') || btnId.startsWith('pay_transfer___') || btnId.startsWith('pay_ussd___')) {
+        const serviceId = btnId.split('___')[1] ?? ''
+
+        const { data: bProfile } = await supabaseAdmin
+          .from('profiles')
+          .select('bank_name, account_number, account_name, business_display_name')
+          .eq('whatsapp_phone_number_id', businessPhoneNumberId)
+          .maybeSingle()
+
+        const { data: svc } = await supabaseAdmin
+          .from('products')
+          .select('name, price, currency')
+          .eq('id', serviceId)
+          .maybeSingle()
+
+        const symMap: Record<string, string> = { NGN: 'N', EUR: '€', USD: '$', GBP: '£' }
+        const currency   = svc?.currency ?? 'NGN'
+        const sym        = symMap[currency] ?? currency
+        const svcPrice   = Number(svc?.price ?? 0)
+        const svcName    = svc?.name ?? 'Service'
+        const bizName    = bProfile?.business_display_name ?? 'us'
+
+        if (btnId.startsWith('pay_card___')) {
+          // Generate Sofi payment link
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+          const payResult = await generatePaymentLink({
+            amount:          svcPrice * 100,
+            currency,
+            description:     `Booking: ${svcName} at ${bizName}`,
+            callback_url:    `${appUrl}/api/webhooks/sofi`,
+            metadata:        { customer_phone: from, service_id: serviceId },
+          })
+          if (payResult.success) {
+            const msg = `✅ *Payment Link Ready!*\n\n📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\nPay securely with your card here:\n${payResult.payment_link}\n\nYour appointment is held for 30 minutes ⏳`
+            await sendTextMessage(from, msg, businessPhoneNumberId)
+          } else {
+            await sendTextMessage(from, `Sorry, I had trouble generating your payment link. Please try again! 🙏`, businessPhoneNumberId)
+          }
+        } else if (btnId.startsWith('pay_transfer___')) {
+          const bankName    = bProfile?.bank_name     ?? '(bank not set — please contact us)'
+          const accNum      = bProfile?.account_number ?? '(not set)'
+          const accName     = bProfile?.account_name  ?? bizName
+          const msg =
+            `💳 *Bank Transfer Details*\n\n` +
+            `📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\n` +
+            `Please transfer the exact amount to:\n\n` +
+            `🏦 *Bank:* ${bankName}\n` +
+            `📟 *Account Number:* ${accNum}\n` +
+            `👤 *Account Name:* ${accName}\n\n` +
+            `After payment, send a screenshot of your receipt here to confirm your booking. ✅`
+          await sendTextMessage(from, msg, businessPhoneNumberId)
+        } else if (btnId.startsWith('pay_ussd___')) {
+          const bankName = bProfile?.bank_name     ?? ''
+          const accNum   = bProfile?.account_number ?? ''
+          const msg =
+            `📱 *Pay with USSD*\n\n` +
+            `Dial your bank's USSD code and transfer *${sym}${svcPrice.toLocaleString()}* to:\n\n` +
+            `🏦 *Bank:* ${bankName}\n` +
+            `📟 *Account:* ${accNum}\n\n` +
+            `Send your receipt here after payment. ✅`
+          await sendTextMessage(from, msg, businessPhoneNumberId)
+        }
+
+        return NextResponse.json({ status: 'ok' })
+      }
+    }
         }
         return NextResponse.json({ status: 'ok' })
       }
