@@ -154,6 +154,176 @@ async function resolveServiceDetails(serviceId: string) {
   return null
 }
 
+async function loadBusinessProfile(businessId: string) {
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('bank_name, account_number, account_name, business_display_name')
+    .eq('id', businessId)
+    .maybeSingle()
+  return data
+}
+
+/** Handle pay_* / pay_confirm button taps. Returns true when the event was consumed. */
+async function processPaymentButtons(opts: {
+  btnId: string
+  from: string
+  businessPhoneNumberId: string | undefined
+  waOwnerId: string | null
+  waName: string | null
+}): Promise<boolean> {
+  const { btnId, from, businessPhoneNumberId, waOwnerId, waName } = opts
+  if (!businessPhoneNumberId) return false
+
+  // ── Customer taps "I've Paid" ─────────────────────────────────────────────
+  if (btnId.startsWith('pay_confirm___')) {
+    const bookingId = btnId.replace('pay_confirm___', '')
+    const { data: booking } = await supabaseAdmin
+      .from('bookings')
+      .select('id, customer_name, service_id, appointment_date, time_slot, business_id, payment_status')
+      .eq('id', bookingId)
+      .maybeSingle()
+
+    if (booking) {
+      await supabaseAdmin.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingId)
+      await supabaseAdmin.from('booking_transactions').update({ status: 'success' }).eq('booking_id', bookingId)
+
+      const svcDetails = await resolveServiceDetails(booking.service_id)
+      const svcName = svcDetails?.name ?? 'your service'
+
+      await sendTextMessage(from,
+        `🎉 *Booking Confirmed!*\n\n` +
+        `Thank you, ${booking.customer_name}! Your payment has been received and your appointment is confirmed.\n\n` +
+        `📋 *${svcName}*\n` +
+        `📅 ${booking.appointment_date} at ${booking.time_slot}\n\n` +
+        `We look forward to seeing you! See you soon 🙌`,
+        businessPhoneNumberId)
+
+      await saveInboundMessage({
+        phone: from,
+        content: `Payment confirmed for: ${svcName} on ${booking.appointment_date}`,
+        msgType: 'button_reply',
+        userId: booking.business_id,
+      })
+    }
+    return true
+  }
+
+  // ── Customer chooses payment method ───────────────────────────────────────
+  if (!btnId.startsWith('pay_card___') && !btnId.startsWith('pay_transfer___') && !btnId.startsWith('pay_ussd___')) {
+    return false
+  }
+
+  const bookingId = btnId.split('___')[1] ?? ''
+  const { data: pendingBooking } = await supabaseAdmin
+    .from('bookings')
+    .select('id, business_id, customer_name, service_id, appointment_date, time_slot, payment_status')
+    .eq('id', bookingId)
+    .eq('payment_status', 'pending')
+    .maybeSingle()
+
+  if (!pendingBooking) {
+    console.error('[webhook] payment button: no pending booking for id', bookingId)
+    await sendTextMessage(from,
+      `I couldn't find your booking. Please type *menu* to book again.`,
+      businessPhoneNumberId)
+    return true
+  }
+
+  const bProfile = await loadBusinessProfile(pendingBooking.business_id)
+  const svcDetails = await resolveServiceDetails(pendingBooking.service_id)
+  const currency   = svcDetails?.currency ?? 'NGN'
+  const sym        = SYM_MAP[currency] ?? currency
+  const svcPrice   = svcDetails?.price ?? 0
+  const svcName    = svcDetails?.name ?? 'Service'
+  const bizName    = bProfile?.business_display_name ?? 'us'
+  const bankName   = bProfile?.bank_name?.trim() || null
+  const accNum     = bProfile?.account_number?.trim() || null
+  const accName    = bProfile?.account_name?.trim() || bizName
+
+  if (btnId.startsWith('pay_card___')) {
+    const ref = generateReference(pendingBooking.id)
+    await supabaseAdmin.from('booking_transactions').update({
+      payment_gateway_provider: 'sofi',
+      reference: ref,
+    }).eq('booking_id', pendingBooking.id)
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+    const payResult = await generatePaymentLink({
+      amount: svcPrice * 100, currency, reference: ref,
+      customer_phone: from, customer_name: pendingBooking.customer_name ?? waName ?? 'Customer',
+      description: `Booking: ${svcName} at ${bizName}`,
+      metadata: { booking_id: pendingBooking.id, business_id: pendingBooking.business_id, service_name: svcName },
+      callback_url: `${appUrl}/api/webhooks/sofi`,
+    })
+
+    if (payResult.success) {
+      await sendTextMessage(from, formatPaymentMessage({
+        customerName: pendingBooking.customer_name ?? 'there',
+        serviceName: svcName,
+        amount: svcPrice,
+        currency,
+        appointmentDate: String(pendingBooking.appointment_date ?? ''),
+        appointmentTime: String(pendingBooking.time_slot ?? ''),
+        paymentLink: payResult.payment_link,
+        virtualAccount: payResult.virtual_account,
+        businessName: bizName,
+      }), businessPhoneNumberId)
+    } else {
+      await sendTextMessage(from,
+        `💳 *Card Payment*\n\n` +
+        `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+        `We couldn't generate a payment link right now. Please try Bank Transfer or contact us directly. 🙏`,
+        businessPhoneNumberId)
+    }
+    return true
+  }
+
+  if (btnId.startsWith('pay_transfer___')) {
+    if (!bankName || !accNum) {
+      await sendTextMessage(from,
+        `🏦 *Bank Transfer*\n\n` +
+        `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+        `Bank details haven't been set up yet. Please contact ${bizName} directly to complete payment. 🙏`,
+        businessPhoneNumberId)
+      return true
+    }
+    await sendInteractiveButtons(from,
+      `🏦 *Bank Transfer Details*\n\n` +
+      `📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\n` +
+      `Please transfer the exact amount to:\n\n` +
+      `🏦 *Bank:* ${bankName}\n` +
+      `📟 *Account Number:* ${accNum}\n` +
+      `👤 *Account Name:* ${accName}\n\n` +
+      `Once you've made the transfer, tap the button below to confirm your booking! ✅`,
+      [{ id: `pay_confirm___${pendingBooking.id}`, title: "✅ I've Paid" }],
+      businessPhoneNumberId)
+    return true
+  }
+
+  if (btnId.startsWith('pay_ussd___')) {
+    if (!bankName || !accNum) {
+      await sendTextMessage(from,
+        `📱 *Pay with USSD*\n\n` +
+        `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+        `Bank details haven't been set up yet. Please contact ${bizName} directly. 🙏`,
+        businessPhoneNumberId)
+      return true
+    }
+    await sendInteractiveButtons(from,
+      `📱 *Pay with USSD*\n\n` +
+      `Dial your bank's USSD code and transfer *${sym}${svcPrice.toLocaleString()}* to:\n\n` +
+      `🏦 *Bank:* ${bankName}\n` +
+      `📟 *Account:* ${accNum}\n` +
+      `👤 *Account Name:* ${accName}\n\n` +
+      `Once you've paid, tap the button below to confirm! ✅`,
+      [{ id: `pay_confirm___${pendingBooking.id}`, title: "✅ I've Paid" }],
+      businessPhoneNumberId)
+    return true
+  }
+
+  return false
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const mode      = searchParams.get('hub.mode')
@@ -214,6 +384,17 @@ export async function POST(request: Request) {
         waOwnerId = wn?.user_id ?? null
       }
       console.log(`[webhook] waOwnerId=${waOwnerId} for bizId=${businessPhoneNumberId}`)
+    }
+
+    // ── Payment buttons (handle first — before menu/flow handlers) ───────────
+    if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
+      const payBtnId: string = message.interactive.button_reply?.id ?? ''
+      if (payBtnId.startsWith('pay_')) {
+        const handled = await processPaymentButtons({
+          btnId: payBtnId, from, businessPhoneNumberId, waOwnerId, waName,
+        })
+        if (handled) return NextResponse.json({ status: 'ok' })
+      }
     }
 
     // ── ECHOES: AI Booking intercept ────────────────────────────────────────
@@ -561,6 +742,12 @@ export async function POST(request: Request) {
         const selId: string =
           message.interactive?.list_reply?.id ??
           message.interactive?.button_reply?.id ?? ''
+
+        // Payment buttons are handled above — never fall through to menu logic
+        if (selId.startsWith('pay_')) {
+          return NextResponse.json({ status: 'ok' })
+        }
+
         const displayName = echoesProfInteractive.business_display_name ?? 'us'
         const flowId      = echoesProfInteractive.booking_flow_id
 
@@ -858,11 +1045,7 @@ export async function POST(request: Request) {
         const bookingBusinessId: string = flowData.flow_db_id
         try {
           // Load the business's profile for bank details + display name
-          const { data: bProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('business_display_name, bank_name, account_number, account_name')
-            .eq('id', bookingBusinessId)
-            .maybeSingle()
+          const bProfile = await loadBusinessProfile(bookingBusinessId)
 
           // Find the product/service selected
           const serviceId: string = flowData.service_id
@@ -899,30 +1082,40 @@ export async function POST(request: Request) {
 
           // Create pending booking
           const ref = generateReference(bookingBusinessId.slice(0, 8))
-          const { data: booking } = await supabaseAdmin
+          const { data: booking, error: bookingErr } = await supabaseAdmin
             .from('bookings')
             .insert({
               business_id:      bookingBusinessId,
               customer_name:    customerName,
               customer_phone:   from,
               service_id:       serviceId,
-              appointment_date: preferredDate,
-              time_slot:        preferredTime,
+              appointment_date: preferredDate || new Date().toISOString().slice(0, 10),
+              time_slot:        preferredTime || 'TBC',
               payment_status:   'pending',
             })
             .select('id')
             .single()
 
-          await supabaseAdmin.from('booking_transactions').insert({
+          if (bookingErr || !booking?.id) {
+            console.error('[echoes] booking insert failed:', bookingErr?.message ?? 'no id')
+            await sendTextMessage(from,
+              `Thanks ${customerName}! We received your details but couldn't save the booking. Please try again or contact us directly. 🙏`,
+              businessPhoneNumberId)
+            return NextResponse.json({ status: 'ok' })
+          }
+
+          const { error: txErr } = await supabaseAdmin.from('booking_transactions').insert({
             business_id:              bookingBusinessId,
-            booking_id:               booking?.id ?? null,
+            booking_id:               booking.id,
             amount:                   servicePrice,
             currency,
             reference:                ref,
-            payment_gateway_provider: null, // set when customer selects payment
-
+            payment_gateway_provider: 'manual',
             status:                   'pending',
           })
+          if (txErr) {
+            console.error('[echoes] booking_transaction insert failed:', txErr.message)
+          }
 
           await saveInboundMessage({
             phone: from, content: `Booking: ${serviceName} on ${preferredDate} at ${preferredTime}`,
@@ -952,9 +1145,9 @@ export async function POST(request: Request) {
                 body: { text: payButtonBody },
                 action: {
                   buttons: [
-                    { type: 'reply', reply: { id: `pay_card___${serviceId}`, title: 'Pay with Card' } },
-                    { type: 'reply', reply: { id: `pay_transfer___${serviceId}`, title: 'Bank Transfer' } },
-                    { type: 'reply', reply: { id: `pay_ussd___${serviceId}`, title: 'Pay with USSD' } },
+                    { type: 'reply', reply: { id: `pay_card___${booking.id}`, title: 'Pay with Card' } },
+                    { type: 'reply', reply: { id: `pay_transfer___${booking.id}`, title: 'Bank Transfer' } },
+                    { type: 'reply', reply: { id: `pay_ussd___${booking.id}`, title: 'Pay with USSD' } },
                   ],
                 },
               },
@@ -1025,184 +1218,6 @@ export async function POST(request: Request) {
         console.error('[webhook] lead insert error:', leadErr.message)
       } else {
         console.log(`[webhook] lead saved formUserId=${formUserId} contactId=${targetContact?.id}`)
-      }
-    }
-
-    // ── Payment button reply handler ──────────────────────────────────────────
-    if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
-      const btnId: string = message.interactive?.button_reply?.id ?? ''
-
-      // Helper: send a "I've Paid" confirmation button after payment instructions
-      async function sendConfirmButton(bookingId: string) {
-        await fetch(`https://graph.facebook.com/v21.0/${businessPhoneNumberId}/messages`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            to: from,
-            type: 'interactive',
-            interactive: {
-              type: 'button',
-              body: { text: `Once you've completed the payment, tap the button below to confirm your booking! 👇` },
-              action: {
-                buttons: [
-                  { type: 'reply', reply: { id: `pay_confirm___${bookingId}`, title: "✅ I've Paid" } },
-                ],
-              },
-            },
-          }),
-        })
-      }
-
-      // ── Step 1: Customer chooses payment method ───────────────────────────
-      if (btnId.startsWith('pay_card___') || btnId.startsWith('pay_transfer___') || btnId.startsWith('pay_ussd___')) {
-        const serviceId = btnId.split('___')[1] ?? ''
-
-        const { data: bProfileByPhone } = await supabaseAdmin
-          .from('profiles')
-          .select('bank_name, account_number, account_name, business_display_name')
-          .eq('wa_phone_number_id', businessPhoneNumberId)
-          .maybeSingle()
-        const { data: bProfileById } = waOwnerId && !bProfileByPhone
-          ? await supabaseAdmin
-            .from('profiles')
-            .select('bank_name, account_number, account_name, business_display_name')
-            .eq('id', waOwnerId)
-            .maybeSingle()
-          : { data: null }
-        const bProfile = bProfileByPhone ?? bProfileById
-
-        const svcDetails = await resolveServiceDetails(serviceId)
-        const currency   = svcDetails?.currency ?? 'NGN'
-        const sym        = SYM_MAP[currency] ?? currency
-        const svcPrice   = svcDetails?.price ?? 0
-        const svcName    = svcDetails?.name ?? 'Service'
-        const bizName    = bProfile?.business_display_name ?? 'us'
-
-        // Find the latest pending booking for this customer + service
-        const { data: pendingBooking } = await supabaseAdmin
-          .from('bookings')
-          .select('id, customer_name, appointment_date, time_slot')
-          .eq('customer_phone', from)
-          .eq('service_id', serviceId)
-          .eq('payment_status', 'pending')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (btnId.startsWith('pay_card___')) {
-          if (pendingBooking?.id) {
-            const ref = generateReference(pendingBooking.id)
-            await supabaseAdmin.from('booking_transactions').update({
-              payment_gateway_provider: 'sofi',
-              reference: ref,
-            }).eq('booking_id', pendingBooking.id)
-
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
-            const payResult = await generatePaymentLink({
-              amount: svcPrice * 100, currency, reference: ref,
-              customer_phone: from, customer_name: pendingBooking.customer_name ?? waName ?? 'Customer',
-              description: `Booking: ${svcName} at ${bizName}`,
-              metadata: { booking_id: pendingBooking.id, business_id: waOwnerId ?? '', service_name: svcName },
-              callback_url: `${appUrl}/api/webhooks/sofi`,
-            })
-
-            if (payResult.success) {
-              await sendTextMessage(from, formatPaymentMessage({
-                customerName: pendingBooking.customer_name ?? 'there',
-                serviceName: svcName,
-                amount: svcPrice,
-                currency,
-                appointmentDate: pendingBooking.appointment_date ?? '',
-                appointmentTime: pendingBooking.time_slot ?? '',
-                paymentLink: payResult.payment_link,
-                virtualAccount: payResult.virtual_account,
-                businessName: bizName,
-              }), businessPhoneNumberId)
-            } else {
-              await sendTextMessage(from,
-                `💳 *Card Payment*\n\n` +
-                `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
-                `We couldn't generate a payment link right now. Please try Bank Transfer or contact us directly. 🙏`,
-                businessPhoneNumberId)
-            }
-          } else {
-            await sendTextMessage(from,
-              `💳 *Card Payment*\n\n` +
-              `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
-              `We couldn't find your booking. Please book again by typing *menu*.`,
-              businessPhoneNumberId)
-          }
-        } else if (btnId.startsWith('pay_transfer___')) {
-          const bankName = bProfile?.bank_name     ?? '(bank not set — please contact us)'
-          const accNum   = bProfile?.account_number ?? '(not set)'
-          const accName  = bProfile?.account_name  ?? bizName
-          await sendTextMessage(from,
-            `🏦 *Bank Transfer Details*\n\n` +
-            `📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\n` +
-            `Please transfer the exact amount to:\n\n` +
-            `🏦 *Bank:* ${bankName}\n` +
-            `📟 *Account Number:* ${accNum}\n` +
-            `👤 *Account Name:* ${accName}\n\n` +
-            `After making the transfer, tap the button below to confirm! ✅`,
-            businessPhoneNumberId)
-        } else if (btnId.startsWith('pay_ussd___')) {
-          const bankName = bProfile?.bank_name     ?? ''
-          const accNum   = bProfile?.account_number ?? ''
-          await sendTextMessage(from,
-            `📱 *Pay with USSD*\n\n` +
-            `Dial your bank's USSD code and transfer *${sym}${svcPrice.toLocaleString()}* to:\n\n` +
-            `🏦 *Bank:* ${bankName}\n` +
-            `📟 *Account:* ${accNum}\n\n` +
-            `After paying, tap the button below to confirm! ✅`,
-            businessPhoneNumberId)
-        }
-
-        if (pendingBooking?.id && !btnId.startsWith('pay_card___')) {
-          await sendConfirmButton(pendingBooking.id)
-        }
-
-        return NextResponse.json({ status: 'ok' })
-      }
-
-      // ── Step 2: Customer taps "I've Paid" ─────────────────────────────────
-      if (btnId.startsWith('pay_confirm___')) {
-        const bookingId = btnId.replace('pay_confirm___', '')
-
-        const { data: booking } = await supabaseAdmin
-          .from('bookings')
-          .select('id, customer_name, service_id, appointment_date, time_slot, business_id, payment_status')
-          .eq('id', bookingId)
-          .maybeSingle()
-
-        if (booking) {
-          // Mark booking as paid
-          await supabaseAdmin.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingId)
-          await supabaseAdmin.from('booking_transactions').update({ status: 'confirmed' }).eq('booking_id', bookingId)
-
-          // Get service name for the confirmation message
-          const svcDetails = await resolveServiceDetails(booking.service_id)
-          const svcName = svcDetails?.name ?? 'your service'
-
-          // Send confirmation to customer
-          await sendTextMessage(from,
-            `🎉 *Booking Confirmed!*\n\n` +
-            `Thank you, ${booking.customer_name}! Your payment has been received and your appointment is confirmed.\n\n` +
-            `📋 *${svcName}*\n` +
-            `📅 ${booking.appointment_date} at ${booking.time_slot}\n\n` +
-            `We look forward to seeing you! See you soon 🙌`,
-            businessPhoneNumberId)
-
-          // Log the confirmation
-          await saveInboundMessage({
-            phone: from,
-            content: `Payment confirmed for: ${svcName} on ${booking.appointment_date}`,
-            msgType: 'button_reply',
-            userId: booking.business_id,
-          })
-        }
-
-        return NextResponse.json({ status: 'ok' })
       }
     }
 
