@@ -20,6 +20,10 @@ export async function GET(request: Request) {
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
     return new Response(challenge, { status: 200 })
   }
+  // Return 200 for health checks (no hub params)
+  if (!mode && !token) {
+    return new Response('OK', { status: 200 })
+  }
   return new Response('Forbidden', { status: 403 })
 }
 

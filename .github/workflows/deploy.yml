@@ -83,7 +83,7 @@ jobs:
                   \"EMAIL_FROM\": \"${{ secrets.EMAIL_FROM }}\",
                   \"BREVO_SMS_SENDER\": \"FastBuySell\",
                   \"CRON_SECRET\": \"${{ secrets.CRON_SECRET }}\",
-                  \"NEXT_PUBLIC_APP_URL\": \"${{ secrets.NEXT_PUBLIC_APP_URL }}\"
+                  \"NEXT_PUBLIC_APP_URL\": \"https://nhxy3u5un3.us-east-1.awsapprunner.com\"
                 }
               }
             },
@@ -110,4 +110,5 @@ jobs:
             --region $AWS_REGION \
             --service-name $SERVICE_NAME \
             --source-configuration "$SOURCE_CONFIG" \
-            --instance-configuration "{\"Cpu\": \"1 vCPU\", \"Memory\": \"2 GB\"}"
+            --instance-configuration "{\"Cpu\": \"1 vCPU\", \"Memory\": \"2 GB\"}" \
+            --health-check-configuration "{\"Protocol\": \"HTTP\", \"Path\": \"/api/webhook\", \"Interval\": 20, \"Timeout\": 10, \"HealthyThreshold\": 1, \"UnhealthyThreshold\": 5}"
