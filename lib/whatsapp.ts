@@ -53,6 +53,7 @@ export async function sendFlowMessage(
     screen?: string
     ctaText?: string
     bodyText?: string
+    initialData?: Record<string, unknown>
   },
   token?: string
 ) {
@@ -60,6 +61,9 @@ export async function sendFlowMessage(
   const screen = opts?.screen || 'CONTACT_DETAILS'
   const cta    = opts?.ctaText || 'Formular ausfüllen'
   const body   = opts?.bodyText || 'Vielen Dank für Ihr Interesse! Bitte füllen Sie das Formular aus, damit unser Team Sie schnellstmöglich kontaktieren kann.'
+
+  const flowActionPayload: Record<string, unknown> = { screen }
+  if (opts?.initialData) flowActionPayload.data = opts.initialData
 
   return post({
     messaging_product: 'whatsapp',
@@ -77,7 +81,7 @@ export async function sendFlowMessage(
           flow_id: flowId,
           flow_cta: cta,
           flow_action: 'navigate',
-          flow_action_payload: { screen },
+          flow_action_payload: flowActionPayload,
         },
       },
     },
@@ -130,4 +134,88 @@ export async function getTemplateStatus(templateName: string, wabaId?: string, t
   )
   const data = await res.json()
   return data.data?.[0] ?? null
+}
+
+export async function sendInteractiveList(
+  to: string,
+  phoneNumberId?: string,
+  opts?: {
+    bodyText: string
+    buttonText: string
+    sections: Array<{
+      title: string
+      rows: Array<{ id: string; title: string; description?: string }>
+    }>
+  },
+  token?: string
+) {
+  return post({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: opts?.bodyText ?? 'Select an option' },
+      action: {
+        button: opts?.buttonText ?? 'View Options',
+        sections: opts?.sections ?? [],
+      },
+    },
+  }, phoneNumberId, token)
+}
+
+export async function sendInteractiveButtons(
+  to: string,
+  bodyText: string,
+  buttons: Array<{ id: string; title: string }>,
+  phoneNumberId?: string,
+  token?: string
+) {
+  return post({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: bodyText },
+      action: {
+        buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
+      },
+    },
+  }, phoneNumberId, token)
+}
+
+/** Send an interactive button message with an image header */
+export async function sendImageButtonMessage(
+  to: string,
+  phoneNumberId?: string,
+  opts?: {
+    imageUrl: string
+    bodyText: string
+    footerText?: string
+    buttons: Array<{ id: string; title: string }>
+  },
+  token?: string
+) {
+  const buttons = (opts?.buttons ?? []).slice(0, 3)
+  return post({
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      header: {
+        type: 'image',
+        image: { link: opts?.imageUrl },
+      },
+      body: { text: opts?.bodyText ?? '' },
+      ...(opts?.footerText ? { footer: { text: opts.footerText } } : {}),
+      action: {
+        buttons: buttons.map(b => ({ type: 'reply', reply: { id: b.id, title: b.title } })),
+      },
+    },
+  }, phoneNumberId, token)
 }

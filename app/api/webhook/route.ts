@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendFlowMessage, sendInteractiveButtons, sendInteractiveList, sendTextMessage } from '@/lib/whatsapp'
+import { sendFlowMessage, sendInteractiveButtons, sendInteractiveList, sendTextMessage, sendImageButtonMessage } from '@/lib/whatsapp'
 import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
 import { loadBusinessContext, getOrCreateSession, processBookingMessage } from '@/lib/ai-booking'
 import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/lib/sofi'
@@ -11,80 +11,148 @@ import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
 // ── Tresses Lagos service catalog (all categories, used for interactive lists + price lookup) ──
-const ECHOES_CATALOG: Record<string, { title: string; rows: Array<{ id: string; name: string; price: number; dur: string }> }> = {
-  cat_repair: { title: '💧 Hair Repair & Hydration', rows: [
-    { id: 'b26b9576-acd1-4040-9dda-0ea1b4f73fa6', name: 'Intense Hydrating',      price: 31000, dur: '1hr 30min' },
-    { id: '67024421-de57-48c8-a99c-fdca04efb44d', name: 'Moisture SOS',            price: 49500, dur: '1hr 30min' },
-    { id: '00885a00-ef74-4e87-b6fe-de1ac451adbd', name: 'Bond Builder',             price: 38500, dur: '1hr 30min' },
-    { id: 'b1756751-ba7c-4242-a753-5383759d1d09', name: 'Quinoa Protein',           price: 31000, dur: '1hr 30min' },
-    { id: 'cc59570f-b491-4876-a933-2a7601ba2eae', name: 'Botox Volumising',         price: 49500, dur: '1hr 30min' },
-    { id: '696351e0-02d0-47df-8da7-6b985074b395', name: 'Molecular Repair Blend',   price: 49500, dur: '1hr 30min' },
-    { id: 'hair-detox',   name: 'Hair Detoxification', price: 28000, dur: '30min'      },
-    { id: 'hair-rehab',   name: 'Hair Rehab Treatment', price: 38500, dur: '1hr 30min' },
-    { id: 'hair-trim',    name: 'Hair Trim',             price: 8800,  dur: '30min'    },
-  ]},
-  cat_scalp: { title: '🔬 Scalp Health', rows: [
-    { id: 'scalp-analysis',    name: 'Scalp Analysis & Consult', price: 15000, dur: '45min'     },
-    { id: 'scalp-detox',       name: 'Scalp Detox & Purification', price: 25000, dur: '1hr'    },
-    { id: 'follicle-stim',     name: 'Follicle Stimulation',      price: 35000, dur: '1hr'     },
-    { id: 'sebum-balance',     name: 'Sebum Balancing Treatment', price: 28000, dur: '1hr'     },
-    { id: 'scalp-microneedle', name: 'Scalp Micro-needling',      price: 45000, dur: '1hr 15m' },
-  ]},
-  cat_smoothing: { title: '✨ Smoothing & Texture', rows: [
-    { id: 'keratin-smooth',    name: 'Keratin Smoothing',         price: 85000,  dur: '3hr'  },
-    { id: 'japanese-straight', name: 'Japanese Straightening',    price: 120000, dur: '4hr'  },
-    { id: 'relaxer-app',       name: 'Relaxer Application',       price: 25000,  dur: '2hr'  },
-    { id: 'texture-soften',    name: 'Texture Softening',         price: 45000,  dur: '2hr'  },
-    { id: 'curl-define',       name: 'Curl Definition Treatment', price: 35000,  dur: '2hr'  },
-    { id: 'brazilian-blowout', name: 'Brazilian Blowout',         price: 75000,  dur: '3hr'  },
-    { id: 'thermal-recond',    name: 'Thermal Reconditioning',    price: 95000,  dur: '4hr'  },
-    { id: 'natural-curl-enh',  name: 'Natural Curl Enhancement',  price: 38000,  dur: '2hr'  },
-  ]},
-  cat_colour: { title: '🎨 Colour Treatments', rows: [
-    { id: 'full-colour',    name: 'Full Colour Application', price: 55000,  dur: '2hr 30m' },
-    { id: 'highlights',     name: 'Highlights & Balayage',   price: 85000,  dur: '3hr'     },
-    { id: 'colour-correct', name: 'Colour Correction',       price: 120000, dur: '4hr+'    },
-  ]},
-  cat_health: { title: '💪 Hair Health', rows: [
-    { id: 'plant-stem',    name: 'Plant Stem Cell Treatment',    price: 45000, dur: '1hr 30m' },
-    { id: 'derma-stim',    name: 'Derma Stimulating Scalp',      price: 38000, dur: '1hr'     },
-    { id: 'prp-growth',    name: 'PRP Hair Growth Treatment',    price: 85000, dur: '1hr 30m' },
-    { id: 'biotin-infuse', name: 'Biotin Infusion Treatment',    price: 42000, dur: '1hr'     },
-  ]},
-  cat_extensions: { title: '💅 Styles With Extensions', rows: [
-    { id: 'knotless-braids',   name: 'Knotless Box Braids',         price: 45000, dur: '4hr+' },
-    { id: 'sew-in-weave',      name: 'Sew-In Weave Install',        price: 35000, dur: '3hr'  },
-    { id: 'wig-install',       name: 'Wig Install & Customise',     price: 25000, dur: '2hr'  },
-    { id: 'faux-locs',         name: 'Faux Locs',                   price: 55000, dur: '5hr+' },
-    { id: 'goddess-locs',      name: 'Goddess Locs',                price: 65000, dur: '6hr+' },
-    { id: 'crochet-braids',    name: 'Crochet Braids',              price: 30000, dur: '3hr'  },
-    { id: 'feed-in-braids',    name: 'Feed-In Braids',              price: 28000, dur: '2hr 30m' },
-    { id: 'cornrows',          name: 'Cornrows',                    price: 15000, dur: '2hr'  },
-    { id: 'senegalese-twists', name: 'Senegalese Twists',           price: 50000, dur: '5hr'  },
-    { id: 'marley-twists',     name: 'Marley Twists',               price: 45000, dur: '4hr'  },
-  ]},
-  cat_natural: { title: '🌀 Natural Styles', rows: [
-    { id: 'wash-go',       name: 'Wash & Go',             price: 15000, dur: '1hr'     },
-    { id: 'twist-out',     name: 'Twist-Out',             price: 12000, dur: '1hr'     },
-    { id: 'braid-out',     name: 'Braid-Out',             price: 12000, dur: '1hr'     },
-    { id: 'bantu-knots',   name: 'Bantu Knots',           price: 18000, dur: '1hr 30m' },
-    { id: 'roller-set',    name: 'Roller Set',            price: 20000, dur: '2hr'     },
-    { id: 'blowout-press', name: 'Blowout & Press',       price: 25000, dur: '1hr 30m' },
-    { id: 'afro-shape',    name: 'Afro Shaping & Sculpt', price: 18000, dur: '1hr'     },
-    { id: 'finger-coils',  name: 'Finger Coils',          price: 22000, dur: '2hr'     },
-    { id: 'perm-rod-set',  name: 'Perm Rod Set',          price: 22000, dur: '2hr'     },
-    { id: 'flexi-rod-set', name: 'Flexi Rod Set',         price: 20000, dur: '2hr'     },
-  ]},
-  cat_takedown: { title: '✂️ Hair Take Down', rows: [
-    { id: 'braid-takedown', name: 'Braid Take-Down',            price: 12000, dur: '1hr'  },
-    { id: 'weave-removal',  name: 'Weave Removal',              price: 8000,  dur: '30min' },
-    { id: 'loc-removal',    name: 'Loc Removal',                price: 35000, dur: '3hr+' },
-    { id: 'wig-removal',    name: 'Wig Removal & Conditioning', price: 10000, dur: '45min' },
-    { id: 'ext-detangle',   name: 'Extension Detangling',       price: 15000, dur: '1hr'  },
-  ]},
+// image: category hero image shown as WhatsApp header before the service list opens
+// Replace image URLs with your own category-specific photos whenever you have them
+const TRESSES_IMG = 'https://assets.withsplice.com/uploads/613663e9-f2e4-4d68-bf20-1e172d78f76c.jpg'
+const ECHOES_CATALOG: Record<string, {
+  title: string
+  description: string
+  image: string
+  rows: Array<{ id: string; name: string; price: number; dur: string }>
+}> = {
+  cat_repair: {
+    title: '💧 Hair Repair & Hydration',
+    description: 'Ultra-hydrating treatments that restore moisture, rebuild bonds & reduce frizz — from ₦8,800.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'b26b9576-acd1-4040-9dda-0ea1b4f73fa6', name: 'Intense Hydrating',      price: 31000, dur: '1hr 30min' },
+      { id: '67024421-de57-48c8-a99c-fdca04efb44d', name: 'Moisture SOS',            price: 49500, dur: '1hr 30min' },
+      { id: '00885a00-ef74-4e87-b6fe-de1ac451adbd', name: 'Bond Builder',             price: 38500, dur: '1hr 30min' },
+      { id: 'b1756751-ba7c-4242-a753-5383759d1d09', name: 'Quinoa Protein',           price: 31000, dur: '1hr 30min' },
+      { id: 'cc59570f-b491-4876-a933-2a7601ba2eae', name: 'Botox Volumising',         price: 49500, dur: '1hr 30min' },
+      { id: '696351e0-02d0-47df-8da7-6b985074b395', name: 'Molecular Repair Blend',   price: 49500, dur: '1hr 30min' },
+      { id: 'hair-detox',   name: 'Hair Detoxification', price: 28000, dur: '30min'      },
+      { id: 'hair-rehab',   name: 'Hair Rehab Treatment', price: 38500, dur: '1hr 30min' },
+      { id: 'hair-trim',    name: 'Hair Trim',             price: 8800,  dur: '30min'    },
+    ],
+  },
+  cat_scalp: {
+    title: '🔬 Scalp Health',
+    description: 'Trichology-led scalp treatments targeting congestion, hair loss & follicle health — from ₦15,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'scalp-analysis',    name: 'Scalp Analysis & Consult', price: 15000, dur: '45min'     },
+      { id: 'scalp-detox',       name: 'Scalp Detox & Purification', price: 25000, dur: '1hr'    },
+      { id: 'follicle-stim',     name: 'Follicle Stimulation',      price: 35000, dur: '1hr'     },
+      { id: 'sebum-balance',     name: 'Sebum Balancing Treatment', price: 28000, dur: '1hr'     },
+      { id: 'scalp-microneedle', name: 'Scalp Micro-needling',      price: 45000, dur: '1hr 15m' },
+    ],
+  },
+  cat_smoothing: {
+    title: '✨ Smoothing & Texture',
+    description: 'Keratin, Japanese straightening, relaxers & more — frizz-free results from ₦25,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'keratin-smooth',    name: 'Keratin Smoothing',         price: 85000,  dur: '3hr'  },
+      { id: 'japanese-straight', name: 'Japanese Straightening',    price: 120000, dur: '4hr'  },
+      { id: 'relaxer-app',       name: 'Relaxer Application',       price: 25000,  dur: '2hr'  },
+      { id: 'texture-soften',    name: 'Texture Softening',         price: 45000,  dur: '2hr'  },
+      { id: 'curl-define',       name: 'Curl Definition Treatment', price: 35000,  dur: '2hr'  },
+      { id: 'brazilian-blowout', name: 'Brazilian Blowout',         price: 75000,  dur: '3hr'  },
+      { id: 'thermal-recond',    name: 'Thermal Reconditioning',    price: 95000,  dur: '4hr'  },
+      { id: 'natural-curl-enh',  name: 'Natural Curl Enhancement',  price: 38000,  dur: '2hr'  },
+    ],
+  },
+  cat_colour: {
+    title: '🎨 Colour Treatments',
+    description: 'Full colour, highlights, balayage & correction — expertly applied from ₦55,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'full-colour',    name: 'Full Colour Application', price: 55000,  dur: '2hr 30m' },
+      { id: 'highlights',     name: 'Highlights & Balayage',   price: 85000,  dur: '3hr'     },
+      { id: 'colour-correct', name: 'Colour Correction',       price: 120000, dur: '4hr+'    },
+    ],
+  },
+  cat_health: {
+    title: '💪 Hair Health',
+    description: 'Advanced growth & strengthening therapies including PRP, stem cell & biotin — from ₦38,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'plant-stem',    name: 'Plant Stem Cell Treatment',    price: 45000, dur: '1hr 30m' },
+      { id: 'derma-stim',    name: 'Derma Stimulating Scalp',      price: 38000, dur: '1hr'     },
+      { id: 'prp-growth',    name: 'PRP Hair Growth Treatment',    price: 85000, dur: '1hr 30m' },
+      { id: 'biotin-infuse', name: 'Biotin Infusion Treatment',    price: 42000, dur: '1hr'     },
+    ],
+  },
+  cat_extensions: {
+    title: '💅 Styles With Extensions',
+    description: 'Knotless braids, weaves, wigs, locs, twists & more — 10 styles from ₦15,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'knotless-braids',   name: 'Knotless Box Braids',         price: 45000, dur: '4hr+' },
+      { id: 'sew-in-weave',      name: 'Sew-In Weave Install',        price: 35000, dur: '3hr'  },
+      { id: 'wig-install',       name: 'Wig Install & Customise',     price: 25000, dur: '2hr'  },
+      { id: 'faux-locs',         name: 'Faux Locs',                   price: 55000, dur: '5hr+' },
+      { id: 'goddess-locs',      name: 'Goddess Locs',                price: 65000, dur: '6hr+' },
+      { id: 'crochet-braids',    name: 'Crochet Braids',              price: 30000, dur: '3hr'  },
+      { id: 'feed-in-braids',    name: 'Feed-In Braids',              price: 28000, dur: '2hr 30m' },
+      { id: 'cornrows',          name: 'Cornrows',                    price: 15000, dur: '2hr'  },
+      { id: 'senegalese-twists', name: 'Senegalese Twists',           price: 50000, dur: '5hr'  },
+      { id: 'marley-twists',     name: 'Marley Twists',               price: 45000, dur: '4hr'  },
+    ],
+  },
+  cat_natural: {
+    title: '🌀 Natural Styles',
+    description: 'Wash & go, twist-outs, roller sets, afro sculpting & more — no extensions needed, from ₦12,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'wash-go',       name: 'Wash & Go',             price: 15000, dur: '1hr'     },
+      { id: 'twist-out',     name: 'Twist-Out',             price: 12000, dur: '1hr'     },
+      { id: 'braid-out',     name: 'Braid-Out',             price: 12000, dur: '1hr'     },
+      { id: 'bantu-knots',   name: 'Bantu Knots',           price: 18000, dur: '1hr 30m' },
+      { id: 'roller-set',    name: 'Roller Set',            price: 20000, dur: '2hr'     },
+      { id: 'blowout-press', name: 'Blowout & Press',       price: 25000, dur: '1hr 30m' },
+      { id: 'afro-shape',    name: 'Afro Shaping & Sculpt', price: 18000, dur: '1hr'     },
+      { id: 'finger-coils',  name: 'Finger Coils',          price: 22000, dur: '2hr'     },
+      { id: 'perm-rod-set',  name: 'Perm Rod Set',          price: 22000, dur: '2hr'     },
+      { id: 'flexi-rod-set', name: 'Flexi Rod Set',         price: 20000, dur: '2hr'     },
+    ],
+  },
+  cat_takedown: {
+    title: '✂️ Hair Take Down',
+    description: 'Safe & gentle removal of braids, weaves, locs, wigs & extensions — from ₦8,000.',
+    image: TRESSES_IMG,
+    rows: [
+      { id: 'braid-takedown', name: 'Braid Take-Down',            price: 12000, dur: '1hr'  },
+      { id: 'weave-removal',  name: 'Weave Removal',              price: 8000,  dur: '30min' },
+      { id: 'loc-removal',    name: 'Loc Removal',                price: 35000, dur: '3hr+' },
+      { id: 'wig-removal',    name: 'Wig Removal & Conditioning', price: 10000, dur: '45min' },
+      { id: 'ext-detangle',   name: 'Extension Detangling',       price: 15000, dur: '1hr'  },
+    ],
+  },
 }
 // Flat lookup for price/name by slug
 const CATALOG_FLAT = Object.values(ECHOES_CATALOG).flatMap(c => c.rows)
+
+const SYM_MAP: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
+
+async function resolveServiceDetails(serviceId: string) {
+  const catalogSvc = CATALOG_FLAT.find(s => s.id === serviceId)
+  const { data: prod } = await supabaseAdmin
+    .from('products').select('name, price, currency').eq('id', serviceId).maybeSingle()
+  if (prod) {
+    return { name: prod.name, price: Number(prod.price), currency: prod.currency ?? 'NGN' }
+  }
+  const { data: svcMenu } = await supabaseAdmin
+    .from('services_menu').select('service_name, price, currency').eq('id', serviceId).maybeSingle()
+  if (svcMenu) {
+    return { name: svcMenu.service_name, price: Number(svcMenu.price), currency: svcMenu.currency ?? 'NGN' }
+  }
+  if (catalogSvc) {
+    return { name: catalogSvc.name, price: catalogSvc.price, currency: 'NGN' }
+  }
+  return null
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -175,12 +243,26 @@ export async function POST(request: Request) {
             // ── Keyword menu shortcuts (interactive) ───────────────────────
             const kw = text.trim().toLowerCase()
 
-            // Helper: send service category as interactive list so customers can tap to book
+            // Helper: show service list for a category so customers can tap to book
             const sendCategoryInfo = async (cat: string) => {
               const catData = ECHOES_CATALOG[cat]
               if (!catData) { await sendMainMenu(); return }
               await sendInteractiveList(from, businessPhoneNumberId, {
-                bodyText: `*${catData.title}*\n\nSelect a service below. All visits include a complimentary consultation. 💆‍♀️`,
+                bodyText: `*${catData.title}*\n\nSelect a service to book your appointment 👇`,
+                buttonText: 'Choose Service',
+                sections: [{ title: 'Tap a service to book', rows: catData.rows.slice(0, 10).map(s => ({
+                  id: `svc_book_${s.id}`,
+                  title: s.name.slice(0, 24),
+                  description: `₦${s.price.toLocaleString()} · ${s.dur}`,
+                })) }],
+              })
+            }
+            // Shows the full interactive service list for a category
+            const sendCategoryList = async (cat: string) => {
+              const catData = ECHOES_CATALOG[cat]
+              if (!catData) { await sendMainMenu(); return }
+              await sendInteractiveList(from, businessPhoneNumberId, {
+                bodyText: `*${catData.title}*\n\nSelect a service to book your appointment 👇`,
                 buttonText: 'Choose Service',
                 sections: [{ title: 'Tap a service to book', rows: catData.rows.slice(0, 10).map(s => ({
                   id: `svc_book_${s.id}`,
@@ -460,12 +542,15 @@ export async function POST(request: Request) {
     }
     // ── END ECHOES intercept ─────────────────────────────────────────────────
 
-    // ── ECHOES: Interactive list_reply + cmd_* button handler ────────────────
-    // Handles menu selections (list_reply) and nav buttons (cmd_*) for echoes accounts.
+    // ── ECHOES: Interactive list_reply + button handler ─────────────────────
+    // Handles menu selections (list_reply) and nav/browse buttons for echoes accounts.
     if (waOwnerId && message.type === 'interactive' &&
         (message.interactive?.type === 'list_reply' ||
          (message.interactive?.type === 'button_reply' &&
-           (message.interactive?.button_reply?.id ?? '').startsWith('cmd_')))) {
+           (() => {
+             const bid = message.interactive?.button_reply?.id ?? ''
+             return bid.startsWith('cmd_') || bid.startsWith('browse_cat_')
+           })()))) {
       const { data: echoesProfInteractive } = await supabaseAdmin
         .from('profiles')
         .select('echoes_enabled, booking_flow_id, business_display_name')
@@ -479,11 +564,23 @@ export async function POST(request: Request) {
         const displayName = echoesProfInteractive.business_display_name ?? 'us'
         const flowId      = echoesProfInteractive.booking_flow_id
 
+        // Shows the image card + "Browse Services" button for a category
         const sendCat = async (cat: string) => {
           const catData = ECHOES_CATALOG[cat]
           if (!catData) { return }
+          await sendImageButtonMessage(from, businessPhoneNumberId, {
+            imageUrl: catData.image,
+            bodyText: `*${catData.title}*\n\n${catData.description}\n\n_Every visit includes a complimentary consultation._`,
+            footerText: 'Tap below to see all services',
+            buttons: [{ id: `browse_cat_${cat}`, title: 'Browse Services →' }],
+          })
+        }
+        // Shows the full interactive service list for a category
+        const sendCatList = async (cat: string) => {
+          const catData = ECHOES_CATALOG[cat]
+          if (!catData) { return }
           await sendInteractiveList(from, businessPhoneNumberId, {
-            bodyText: `*${catData.title}*\n\nSelect a service to book at ${displayName}. All visits include a complimentary consultation. 💆‍♀️`,
+            bodyText: `*${catData.title}*\n\nSelect a service to book your appointment 👇`,
             buttonText: 'Choose Service',
             sections: [{ title: 'Tap a service to book', rows: catData.rows.slice(0, 10).map(s => ({
               id: `svc_book_${s.id}`,
@@ -515,45 +612,46 @@ export async function POST(request: Request) {
                 })),
               }],
             })
-          } else if (flowId) {
-            await sendFlowMessage(from, businessPhoneNumberId, {
-              metaFlowId: flowId, screen: 'BOOKING',
-              ctaText: 'Book Now ✨',
-              bodyText: `Book your appointment at ${displayName}`,
-            })
+          } else {
+            await sendMainMenu()
           }
         }
 
         if (selId === 'cmd_book') {
           await sendServicePicker()
         } else if (selId.startsWith('cmd_book_')) {
-          // cmd_book_cat_repair → show that category's interactive service list
           const cat = selId.replace('cmd_book_', '')
           if (ECHOES_CATALOG[cat]) {
-            await sendCat(cat)
+            await sendCatList(cat)
           } else {
             await sendServicePicker()
           }
-        } else if (selId.startsWith('svc_book_') && flowId && waOwnerId) {
+        } else if (selId.startsWith('svc_book_') && waOwnerId) {
           const productId = selId.replace('svc_book_', '')
-          const { data: prod } = await supabaseAdmin
-            .from('products').select('id, name, price, currency').eq('id', productId).maybeSingle()
-          // Fallback: look up in hardcoded catalog for non-Supabase services
-          const catalogSvc = !prod ? CATALOG_FLAT.find(s => s.id === productId) : null
-          const svcName  = prod?.name  ?? catalogSvc?.name
-          const svcPrice = prod ? Number(prod.price) : (catalogSvc?.price ?? 0)
-          const sym      = '₦'
-          if (svcName) {
-            const flowResult = await sendFlowMessage(from, businessPhoneNumberId, {
-              metaFlowId: flowId, screen: 'BOOKING',
-              ctaText: 'Confirm Booking ✨',
-              bodyText: `*${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\nFill in your name, preferred date & time. Takes 30 seconds! 🚀`,
-              initialData: { service_id: productId, service_name: svcName, flow_db_id: waOwnerId },
-            })
-            if (flowResult?.error) {
-              console.error('[echoes] flow send error (svc_book):', JSON.stringify(flowResult.error))
-              await sendTextMessage(from, `I couldn't open the booking form right now. Please try again! 🙏`, businessPhoneNumberId)
+          const svc = await resolveServiceDetails(productId)
+          if (svc) {
+            const sym = SYM_MAP[svc.currency] ?? svc.currency
+            const effectiveFlowId = flowId ?? process.env.WHATSAPP_FLOW_ID ?? undefined
+            if (!effectiveFlowId) {
+              await sendTextMessage(from,
+                `*${svc.name}* — ${sym}${svc.price.toLocaleString()}\n\n` +
+                `Great choice! To book, please reply with:\n` +
+                `1️⃣ Your full name\n2️⃣ Preferred date (e.g. 25 June)\n3️⃣ Preferred time (e.g. 2pm)\n\n` +
+                `We'll confirm your appointment right away! ✨`,
+                businessPhoneNumberId)
+            } else {
+              const flowResult = await sendFlowMessage(from, businessPhoneNumberId, {
+                metaFlowId: effectiveFlowId, screen: 'BOOKING',
+                ctaText: 'Confirm Booking ✨',
+                bodyText: `*${svc.name}* — ${sym}${svc.price.toLocaleString()}\n\nFill in your name, preferred date & time. Takes 30 seconds! 🚀`,
+                initialData: { service_id: productId, service_name: svc.name, flow_db_id: waOwnerId },
+              })
+              if (flowResult?.error) {
+                console.error('[echoes] flow send error (svc_book):', JSON.stringify(flowResult.error))
+                await sendTextMessage(from, `I couldn't open the booking form right now. Please try again! 🙏`, businessPhoneNumberId)
+              }
             }
+            await saveInboundMessage({ phone: from, content: `Selected service: ${svc.name}`, msgType: 'list_reply', userId: waOwnerId })
           } else {
             await sendTextMessage(from, `Sorry, I couldn't find that service. Type *menu* to see all options.`, businessPhoneNumberId)
           }
@@ -612,7 +710,12 @@ export async function POST(request: Request) {
             ],
           })
         } else if (selId.startsWith('cat_')) {
-          await sendCat(selId)
+          // Show the service list directly so customers can pick and book in one tap
+          await sendCatList(selId)
+        } else if (selId.startsWith('browse_cat_')) {
+          // Customer tapped "Browse Services →" — show the interactive service list
+          const cat = selId.replace('browse_cat_', '')
+          await sendCatList(cat)
         }
 
         return NextResponse.json({ status: 'ok' })
@@ -948,29 +1051,31 @@ export async function POST(request: Request) {
       if (btnId.startsWith('pay_card___') || btnId.startsWith('pay_transfer___') || btnId.startsWith('pay_ussd___')) {
         const serviceId = btnId.split('___')[1] ?? ''
 
-        const { data: bProfile } = await supabaseAdmin
+        const { data: bProfileByPhone } = await supabaseAdmin
           .from('profiles')
           .select('bank_name, account_number, account_name, business_display_name')
-          .eq('whatsapp_phone_number_id', businessPhoneNumberId)
+          .eq('wa_phone_number_id', businessPhoneNumberId)
           .maybeSingle()
+        const { data: bProfileById } = waOwnerId && !bProfileByPhone
+          ? await supabaseAdmin
+            .from('profiles')
+            .select('bank_name, account_number, account_name, business_display_name')
+            .eq('id', waOwnerId)
+            .maybeSingle()
+          : { data: null }
+        const bProfile = bProfileByPhone ?? bProfileById
 
-        const { data: svc } = await supabaseAdmin
-          .from('products')
-          .select('name, price, currency')
-          .eq('id', serviceId)
-          .maybeSingle()
-
-        const symMap: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
-        const currency   = svc?.currency ?? 'NGN'
-        const sym        = symMap[currency] ?? currency
-        const svcPrice   = Number(svc?.price ?? 0)
-        const svcName    = svc?.name ?? 'Service'
+        const svcDetails = await resolveServiceDetails(serviceId)
+        const currency   = svcDetails?.currency ?? 'NGN'
+        const sym        = SYM_MAP[currency] ?? currency
+        const svcPrice   = svcDetails?.price ?? 0
+        const svcName    = svcDetails?.name ?? 'Service'
         const bizName    = bProfile?.business_display_name ?? 'us'
 
         // Find the latest pending booking for this customer + service
         const { data: pendingBooking } = await supabaseAdmin
           .from('bookings')
-          .select('id')
+          .select('id, customer_name, appointment_date, time_slot')
           .eq('customer_phone', from)
           .eq('service_id', serviceId)
           .eq('payment_status', 'pending')
@@ -979,11 +1084,48 @@ export async function POST(request: Request) {
           .maybeSingle()
 
         if (btnId.startsWith('pay_card___')) {
-          await sendTextMessage(from,
-            `💳 *Card Payment*\n\n` +
-            `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
-            `We'll send you a secure payment link shortly. Once payment is complete, tap the button below to confirm! 🙏`,
-            businessPhoneNumberId)
+          if (pendingBooking?.id) {
+            const ref = generateReference(pendingBooking.id)
+            await supabaseAdmin.from('booking_transactions').update({
+              payment_gateway_provider: 'sofi',
+              reference: ref,
+            }).eq('booking_id', pendingBooking.id)
+
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
+            const payResult = await generatePaymentLink({
+              amount: svcPrice * 100, currency, reference: ref,
+              customer_phone: from, customer_name: pendingBooking.customer_name ?? waName ?? 'Customer',
+              description: `Booking: ${svcName} at ${bizName}`,
+              metadata: { booking_id: pendingBooking.id, business_id: waOwnerId ?? '', service_name: svcName },
+              callback_url: `${appUrl}/api/webhooks/sofi`,
+            })
+
+            if (payResult.success) {
+              await sendTextMessage(from, formatPaymentMessage({
+                customerName: pendingBooking.customer_name ?? 'there',
+                serviceName: svcName,
+                amount: svcPrice,
+                currency,
+                appointmentDate: pendingBooking.appointment_date ?? '',
+                appointmentTime: pendingBooking.time_slot ?? '',
+                paymentLink: payResult.payment_link,
+                virtualAccount: payResult.virtual_account,
+                businessName: bizName,
+              }), businessPhoneNumberId)
+            } else {
+              await sendTextMessage(from,
+                `💳 *Card Payment*\n\n` +
+                `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+                `We couldn't generate a payment link right now. Please try Bank Transfer or contact us directly. 🙏`,
+                businessPhoneNumberId)
+            }
+          } else {
+            await sendTextMessage(from,
+              `💳 *Card Payment*\n\n` +
+              `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+              `We couldn't find your booking. Please book again by typing *menu*.`,
+              businessPhoneNumberId)
+          }
         } else if (btnId.startsWith('pay_transfer___')) {
           const bankName = bProfile?.bank_name     ?? '(bank not set — please contact us)'
           const accNum   = bProfile?.account_number ?? '(not set)'
@@ -1009,7 +1151,7 @@ export async function POST(request: Request) {
             businessPhoneNumberId)
         }
 
-        if (pendingBooking?.id) {
+        if (pendingBooking?.id && !btnId.startsWith('pay_card___')) {
           await sendConfirmButton(pendingBooking.id)
         }
 
@@ -1032,9 +1174,8 @@ export async function POST(request: Request) {
           await supabaseAdmin.from('booking_transactions').update({ status: 'confirmed' }).eq('booking_id', bookingId)
 
           // Get service name for the confirmation message
-          const { data: svc } = await supabaseAdmin
-            .from('products').select('name').eq('id', booking.service_id).maybeSingle()
-          const svcName = svc?.name ?? 'your service'
+          const svcDetails = await resolveServiceDetails(booking.service_id)
+          const svcName = svcDetails?.name ?? 'your service'
 
           // Send confirmation to customer
           await sendTextMessage(from,
