@@ -12,6 +12,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p /app/public
 
 # These NEXT_PUBLIC vars must be present at build time
 ARG NEXT_PUBLIC_SUPABASE_URL
