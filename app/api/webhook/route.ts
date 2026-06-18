@@ -400,39 +400,6 @@ export async function POST(request: Request) {
           })
 
           return NextResponse.json({ status: 'ok' })
-
-          if (paymentMethod === 'transfer') {
-            // Reply with business bank account details
-            const bankName  = bProfile?.bank_name     ?? '(bank not set)'
-            const accNum    = bProfile?.account_number ?? '(account not set)'
-            const accName   = bProfile?.account_name  ?? displayName
-            const msg = `✅ *Booking Confirmed!*\n\n` +
-              `📋 *${serviceName}*\n` +
-              `📅 ${preferredDate} at ${preferredTime}\n\n` +
-              `To complete your booking, please transfer *${sym}${servicePrice.toLocaleString()}* to:\n\n` +
-              `🏦 *Bank:* ${bankName}\n` +
-              `📟 *Account Number:* ${accNum}\n` +
-              `👤 *Account Name:* ${accName}\n\n` +
-              `Send a screenshot of your payment here once done and we'll confirm your appointment! 🙏`
-            await sendTextMessage(from, msg, businessPhoneNumberId)
-          } else {
-            // Generate Sofi card payment link
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
-            const payResult = await generatePaymentLink({
-              amount:          servicePrice * 100,
-              currency,        reference: ref,
-              customer_phone:  from, customer_name: customerName,
-              description:     `Booking: ${serviceName} at ${displayName}`,
-              metadata:        { booking_id: booking?.id ?? '', business_id: bookingBusinessId },
-              callback_url:    `${appUrl}/api/webhooks/sofi`,
-            })
-            if (payResult.success) {
-              const msg = `✅ *Booking Confirmed!*\n\n📋 *${serviceName}*\n📅 ${preferredDate} at ${preferredTime}\n\nPay securely with your card here:\n${payResult.payment_link}\n\nYour appointment is held for 30 minutes ⏳`
-              await sendTextMessage(from, msg, businessPhoneNumberId)
-            } else {
-              await sendTextMessage(from, `Booking received! We'll send your payment link shortly.`, businessPhoneNumberId)
-            }
-          }
         } catch (err) {
           console.error('[echoes] booking flow nfm_reply error:', err)
           await sendTextMessage(from, `Thanks! We received your booking request and will confirm shortly. 🙏`, businessPhoneNumberId)
