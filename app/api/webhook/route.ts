@@ -3,9 +3,8 @@ export const dynamic = 'force-dynamic'
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendFlowMessage } from '@/lib/whatsapp'
+import { sendFlowMessage, sendInteractiveButtons, sendInteractiveList, sendTextMessage } from '@/lib/whatsapp'
 import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
-import { sendTextMessage } from '@/lib/whatsapp'
 import { loadBusinessContext, getOrCreateSession, processBookingMessage } from '@/lib/ai-booking'
 import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/lib/sofi'
 
@@ -83,7 +82,7 @@ export async function POST(request: Request) {
         .eq('id', waOwnerId)
         .maybeSingle()
 
-      if (echoesProfile?.echoes_enabled && process.env.OPENAI_API_KEY) {
+      if (echoesProfile?.echoes_enabled) {
         const text: string = message.text?.body ?? ''
         console.log(`[echoes] AI booking for business=${waOwnerId} from=${from} text="${text.slice(0, 60)}"`)
 
@@ -97,21 +96,289 @@ export async function POST(request: Request) {
             // Save inbound message to logs
             await saveInboundMessage({ phone: from, content: text, msgType: 'text', userId: waOwnerId })
 
+            // ── Keyword menu shortcuts (interactive) ───────────────────────
+            const kw = text.trim().toLowerCase()
+
+            // Helper: send service category detail with Book + Main Menu buttons
+            const sendCategoryInfo = async (cat: string) => {
+              const catTexts: Record<string, string> = {
+                cat_repair:
+                  `*💧 Hair Repair & Hydration*\n\n` +
+                  `• Intense Hydrating Treatment — ₦31,000 _(1hr 30min)_\n` +
+                  `  _Ultra-detangling; long-lasting hydration & frizz reduction_\n\n` +
+                  `• Moisture S.O.S Treatment — ₦49,500 _(1hr 30min)_\n` +
+                  `  _Deep moisture locking; hydrated up to 6 weeks_\n\n` +
+                  `• Bond Builder Treatment — ₦38,500 _(1hr 30min)_\n` +
+                  `  _Rebuilds broken bonds; ideal for chemically treated hair_\n\n` +
+                  `• Quinoa Protein Treatment — ₦31,000 _(1hr 30min)_\n` +
+                  `  _Plant-based protein strengthening_\n\n` +
+                  `• Botox Volumising Treatment — ₦49,500 _(1hr 30min)_\n` +
+                  `  _Smooths frizz & adds volume without chemicals_\n\n` +
+                  `• Molecular Repair Blend — ₦49,500 _(1hr 30min)_\n` +
+                  `  _Advanced molecular repair for severely damaged hair_\n\n` +
+                  `• Hair Detoxification — ₦28,000 _(30min)_\n` +
+                  `  _Removes minerals & residue from extensions & hard water_\n\n` +
+                  `• Hair Rehab Treatment — ₦38,500 _(1hr 30min)_\n` +
+                  `  _Fusion of moisture & protein therapy_`,
+                cat_scalp:
+                  `*🔬 Scalp Health Enhancements*\n\n` +
+                  `5 specialised treatments:\n` +
+                  `• Scalp analysis & consultation\n` +
+                  `• Scalp detox & purification\n` +
+                  `• Follicle stimulation therapy\n` +
+                  `• Sebum balancing treatment\n\n` +
+                  `Every visit begins with a complimentary Hair Technician Consultation.`,
+                cat_smoothing:
+                  `*✨ Smoothing, Straightening & Texture Transformation*\n\n` +
+                  `8 treatments including:\n` +
+                  `• Keratin smoothing\n` +
+                  `• Japanese straightening\n` +
+                  `• Relaxer application\n` +
+                  `• Texture softening\n` +
+                  `• Curl definition treatments`,
+                cat_colour:
+                  `*🎨 Colour Treatments*\n\n` +
+                  `3 services including:\n` +
+                  `• Full colour application\n` +
+                  `• Highlights & balayage\n` +
+                  `• Colour correction\n\n` +
+                  `Every colour service includes a complimentary consultation.`,
+                cat_health:
+                  `*💪 Hair Health Enhancements*\n\n` +
+                  `4 treatments to strengthen and revitalise your hair — protein treatments, growth stimulation, and deep conditioning.`,
+                cat_extensions:
+                  `*💅 Styles With Extensions*\n\n` +
+                  `49 styles available including:\n` +
+                  `• Box braids & knotless braids\n` +
+                  `• Weave installs & sew-ins\n` +
+                  `• Wig installs & customisation\n` +
+                  `• Faux locs & goddess locs\n` +
+                  `• Crochet styles\n` +
+                  `• Feed-in braids & cornrows\n` +
+                  `• Twists (Senegalese, Marley, etc.)`,
+                cat_natural:
+                  `*🌀 Natural Styles (No Extensions)*\n\n` +
+                  `34 styles including:\n` +
+                  `• Wash & go\n` +
+                  `• Twist-outs & braid-outs\n` +
+                  `• Bantu knots\n` +
+                  `• Roller sets\n` +
+                  `• Blowout & press\n` +
+                  `• Afro shaping & sculpting\n` +
+                  `• Finger coils`,
+                cat_takedown:
+                  `*✂️ Hair Take Down Services*\n\n` +
+                  `15 services including:\n` +
+                  `• Braid take-down\n` +
+                  `• Weave removal\n` +
+                  `• Loc removal\n` +
+                  `• Wig removal & conditioning\n` +
+                  `• Extension detangling`,
+              }
+              const body = catTexts[cat] ?? 'Here are our services.'
+              await sendInteractiveButtons(from, body, [
+                { id: `cmd_book_${cat}`, title: '📅 Book Now' },
+                { id: 'cmd_mainmenu',    title: '🏠 Main Menu' },
+              ], businessPhoneNumberId)
+            }
+
+            // Helper: send the main interactive list menu
+            const sendMainMenu = async () => {
+              const firstName = waName ? waName.split(' ')[0] : ''
+              await sendInteractiveList(from, businessPhoneNumberId, {
+                bodyText:
+                  `Hi${firstName ? ` ${firstName}` : ''}! 👋 Welcome to *${ctx.display_name}*.\n\n` +
+                  `We're a trichology-led hair & scalp clinic. Every visit starts with a complimentary consultation.\n\n` +
+                  `How can we help you today? 👇`,
+                buttonText: 'View Services',
+                sections: [
+                  {
+                    title: 'Treatments',
+                    rows: [
+                      { id: 'cat_repair',    title: '💧 Hair Repair',        description: '8 treatments from ₦28,000' },
+                      { id: 'cat_scalp',     title: '🔬 Scalp Health',        description: '5 specialised treatments' },
+                      { id: 'cat_smoothing', title: '✨ Texture & Smoothing',  description: '8 treatments available' },
+                      { id: 'cat_colour',    title: '🎨 Colour Treatments',   description: '3 colour services' },
+                      { id: 'cat_health',    title: '💪 Hair Health',         description: '4 strengthening treatments' },
+                    ],
+                  },
+                  {
+                    title: 'Styling',
+                    rows: [
+                      { id: 'cat_extensions', title: '💅 Styles + Extensions', description: '49 styles available' },
+                      { id: 'cat_natural',    title: '🌀 Natural Styles',      description: '34 styles available' },
+                      { id: 'cat_takedown',   title: '✂️ Hair Take Down',      description: '15 take-down services' },
+                    ],
+                  },
+                  {
+                    title: 'Quick Actions',
+                    rows: [
+                      { id: 'cmd_book',   title: '📅 Book Appointment', description: 'Book in under 30 seconds' },
+                      { id: 'cmd_prices', title: '💰 View All Prices',  description: 'Full price list' },
+                    ],
+                  },
+                ],
+              })
+            }
+
+            // Main menu
+            if (kw === '/' || kw === 'menu' || kw === 'hi' || kw === 'hello' || kw === 'hey' || kw === 'start') {
+              await sendMainMenu()
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+
+            if (kw === '/prices' || kw === 'prices' || kw === 'pricing' || kw === 'price list' || kw === 'price') {
+              await sendInteractiveButtons(from,
+                `*${ctx.display_name} — Treatment Prices* 💆‍♀️\n\n` +
+                `*💧 Hair Repair & Hydration:*\n` +
+                `• Intense Hydrating — ₦31,000\n` +
+                `• Moisture S.O.S — ₦49,500\n` +
+                `• Bond Builder — ₦38,500\n` +
+                `• Quinoa Protein — ₦31,000\n` +
+                `• Botox Volumising — ₦49,500\n` +
+                `• Molecular Repair — ₦49,500\n` +
+                `• Hair Detox — ₦28,000\n` +
+                `• Hair Rehab — ₦38,500\n` +
+                `• Trim — ₦8,800\n\n` +
+                `*🔬 Scalp Health:* from ₦25,000\n` +
+                `*🎨 Colour:* from ₦35,000\n` +
+                `*💅 Extensions:* from ₦15,000\n` +
+                `*🌀 Natural Styles:* from ₦10,000`,
+                [
+                  { id: 'cmd_book',     title: '📅 Book Now' },
+                  { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
+                ], businessPhoneNumberId)
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+
+            if (/^(book|booking|bookings|reserve|appointment|appointments)$/i.test(kw)) {
+              // Show services from Supabase so customer picks one before the flow opens
+              const { data: prods } = await supabaseAdmin
+                .from('products')
+                .select('id, name, price, currency')
+                .eq('business_id', waOwnerId!)
+                .eq('is_available', true)
+                .order('sort_order')
+                .limit(10)
+              const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
+              if (prods?.length) {
+                await sendInteractiveList(from, businessPhoneNumberId, {
+                  bodyText: `*Select your treatment* at ${ctx.display_name} 💆‍♀️\n\nAll visits include a complimentary Hair Technician Consultation.`,
+                  buttonText: 'Choose Treatment',
+                  sections: [{ title: 'Available Treatments',
+                    rows: prods.map(p => ({
+                      id: `svc_book_${p.id}`,
+                      title: p.name.slice(0, 24),
+                      description: `${SYM[p.currency] ?? p.currency}${Number(p.price).toLocaleString()}`,
+                    })),
+                  }],
+                })
+              } else {
+                await sendMainMenu()
+              }
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+
+            if (/^(services|treatments|service list|what do you offer|what services|offerings)$/i.test(kw)) {
+              await sendMainMenu()
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+
+            if (kw === '1' || kw === 'hair repair' || kw === 'repair' || kw === 'hydration') {
+              await sendCategoryInfo('cat_repair')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '2' || kw === 'scalp') {
+              await sendCategoryInfo('cat_scalp')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '3' || kw === 'smoothing' || kw === 'texture' || kw === 'straightening') {
+              await sendCategoryInfo('cat_smoothing')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '4' || kw === 'styles extensions' || kw === 'extensions' || kw === 'weave' || kw === 'braids') {
+              await sendCategoryInfo('cat_extensions')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '5' || kw === 'natural styles' || kw === 'natural' || kw === 'no extensions') {
+              await sendCategoryInfo('cat_natural')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '6' || kw === 'colour' || kw === 'color' || kw === 'highlights') {
+              await sendCategoryInfo('cat_colour')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '7' || kw === 'hair health') {
+              await sendCategoryInfo('cat_health')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '8' || kw === 'take down' || kw === 'takedown' || kw === 'removal') {
+              await sendCategoryInfo('cat_takedown')
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === '9' || kw === 'consultation' || kw === 'consult') {
+              await sendInteractiveButtons(from,
+                `*🧴 Consultation at ${ctx.display_name}*\n\n` +
+                `Every visit begins with a *complimentary Hair Technician Consultation* so we fully understand your hair & scalp before treatment.\n\n` +
+                `Covers: hair & scalp analysis, root cause identification, personalised treatment plan & maintenance advice.\n\n` +
+                `*All consultations are included free* with any service booking.`,
+                [
+                  { id: 'cmd_book',     title: '📅 Book Now' },
+                  { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
+                ], businessPhoneNumberId)
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === 'location' || kw === 'address' || kw === 'where' || kw === 'directions' || kw === 'find us') {
+              await sendInteractiveButtons(from,
+                `📍 *${ctx.display_name} — Victoria Island*\n\n` +
+                `67 Kofo Abayomi St, Victoria Island, Lagos\n\n` +
+                `🕘 *Hours:*\n` +
+                `Mon: 10:00 AM – 5:30 PM\n` +
+                `Tue–Sat: 9:00 AM – 5:30 PM\n` +
+                `Sun: ❌ Closed\n\n` +
+                `https://maps.google.com/?q=67+Kofo+Abayomi+St+Victoria+Island+Lagos`,
+                [
+                  { id: 'cmd_book',     title: '📅 Book Now' },
+                  { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
+                ], businessPhoneNumberId)
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            if (kw === 'hours' || kw === 'opening hours' || kw === 'open' || kw === 'opening times') {
+              await sendInteractiveButtons(from,
+                `🕘 *${ctx.display_name} — Opening Hours*\n\n` +
+                `Monday: 10:00 AM – 5:30 PM\n` +
+                `Tuesday–Saturday: 9:00 AM – 5:30 PM\n` +
+                `Sunday: ❌ Closed`,
+                [
+                  { id: 'cmd_book',     title: '📅 Book Now' },
+                  { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
+                ], businessPhoneNumberId)
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
+              return NextResponse.json({ status: 'ok' })
+            }
+            // ── End keyword menu ────────────────────────────────────────────
+
             const isFirstMessage = session.state === 'greeting'
 
-            if (isFirstMessage && ctx.booking_flow_id) {
-              // New customer (or returning) → send greeting + booking flow in WhatsApp
-              const greeting = `Hi${waName ? ` ${waName.split(' ')[0]}` : ''}! 👋 Welcome to *${ctx.display_name}*.\n\nTap the button below to book your appointment — choose your service, pick a time, and select how you'd like to pay. It takes less than 30 seconds! 🚀`
-              await sendTextMessage(from, greeting, businessPhoneNumberId)
-              await sendFlowMessage(from, businessPhoneNumberId, {
-                metaFlowId: ctx.booking_flow_id,
-                screen: 'BOOKING',
-                ctaText: 'Book Now ✨',
-                bodyText: `Pick your service and confirm your booking at ${ctx.display_name}`,
-              })
-              // Update session state so we don't re-send the flow on every message
+            if (isFirstMessage) {
+              // New customer → show service menu; they pick a service, then the booking form opens
+              await sendMainMenu()
               await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
-            } else {
+            } else if (process.env.OPENAI_API_KEY) {
               // Ongoing conversation — let AI continue naturally
               const { intent, updatedSession } = await processBookingMessage(text, ctx, session)
               console.log(`[echoes] intent.action=${intent.action} state=${updatedSession.state}`)
@@ -170,6 +437,10 @@ export async function POST(request: Request) {
                   await sendTextMessage(from, `Sorry, I had trouble generating your payment link. Please try again! 🙏`, businessPhoneNumberId)
                 }
               }
+            } else {
+              // No OPENAI_API_KEY set — show main menu as fallback
+              await sendMainMenu()
+              await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
             }
           }
         } catch (err) {
@@ -181,6 +452,222 @@ export async function POST(request: Request) {
       }
     }
     // ── END ECHOES intercept ─────────────────────────────────────────────────
+
+    // ── ECHOES: Interactive list_reply + cmd_* button handler ────────────────
+    // Handles menu selections (list_reply) and nav buttons (cmd_*) for echoes accounts.
+    if (waOwnerId && message.type === 'interactive' &&
+        (message.interactive?.type === 'list_reply' ||
+         (message.interactive?.type === 'button_reply' &&
+           (message.interactive?.button_reply?.id ?? '').startsWith('cmd_')))) {
+      const { data: echoesProfInteractive } = await supabaseAdmin
+        .from('profiles')
+        .select('echoes_enabled, booking_flow_id, business_display_name')
+        .eq('id', waOwnerId)
+        .maybeSingle()
+
+      if (echoesProfInteractive?.echoes_enabled) {
+        const selId: string =
+          message.interactive?.list_reply?.id ??
+          message.interactive?.button_reply?.id ?? ''
+        const displayName = echoesProfInteractive.business_display_name ?? 'us'
+        const flowId      = echoesProfInteractive.booking_flow_id
+
+        const sendCat = async (cat: string) => {
+          const catTexts: Record<string, string> = {
+            cat_repair:
+              `*💧 Hair Repair & Hydration*\n\n` +
+              `• Intense Hydrating Treatment — ₦31,000 _(1hr 30min)_\n` +
+              `  _Ultra-detangling; long-lasting hydration & frizz reduction_\n\n` +
+              `• Moisture S.O.S Treatment — ₦49,500 _(1hr 30min)_\n` +
+              `  _Deep moisture locking; hydrated up to 6 weeks_\n\n` +
+              `• Bond Builder Treatment — ₦38,500 _(1hr 30min)_\n` +
+              `  _Rebuilds broken bonds; ideal for chemically treated hair_\n\n` +
+              `• Quinoa Protein Treatment — ₦31,000 _(1hr 30min)_\n` +
+              `  _Plant-based protein strengthening_\n\n` +
+              `• Botox Volumising Treatment — ₦49,500 _(1hr 30min)_\n` +
+              `  _Smooths frizz & adds volume without chemicals_\n\n` +
+              `• Molecular Repair Blend — ₦49,500 _(1hr 30min)_\n` +
+              `  _Advanced molecular repair for severely damaged hair_\n\n` +
+              `• Hair Detoxification — ₦28,000 _(30min)_\n` +
+              `  _Removes minerals & residue from extensions & hard water_\n\n` +
+              `• Hair Rehab Treatment — ₦38,500 _(1hr 30min)_\n` +
+              `  _Fusion of moisture & protein therapy_`,
+            cat_scalp:
+              `*🔬 Scalp Health Enhancements*\n\n` +
+              `5 specialised treatments including:\n` +
+              `• Scalp analysis & consultation\n` +
+              `• Scalp detox & purification\n` +
+              `• Follicle stimulation therapy\n` +
+              `• Sebum balancing treatment\n\n` +
+              `Every visit begins with a complimentary Hair Technician Consultation.`,
+            cat_smoothing:
+              `*✨ Smoothing, Straightening & Texture Transformation*\n\n` +
+              `8 treatments including:\n` +
+              `• Keratin smoothing\n` +
+              `• Japanese straightening\n` +
+              `• Relaxer application\n` +
+              `• Texture softening\n` +
+              `• Curl definition treatments`,
+            cat_colour:
+              `*🎨 Colour Treatments*\n\n` +
+              `3 services including:\n` +
+              `• Full colour application\n` +
+              `• Highlights & balayage\n` +
+              `• Colour correction\n\n` +
+              `Every colour service includes a complimentary consultation.`,
+            cat_health:
+              `*💪 Hair Health Enhancements*\n\n` +
+              `4 treatments to strengthen and revitalise your hair from root to tip — protein treatments, growth stimulation, and deep conditioning.`,
+            cat_extensions:
+              `*💅 Styles With Extensions*\n\n` +
+              `49 styles available including:\n` +
+              `• Box braids & knotless braids\n` +
+              `• Weave installs & sew-ins\n` +
+              `• Wig installs & customisation\n` +
+              `• Faux locs & goddess locs\n` +
+              `• Crochet styles\n` +
+              `• Feed-in braids & cornrows\n` +
+              `• Twists (Senegalese, Marley, etc.)`,
+            cat_natural:
+              `*🌀 Natural Styles (No Extensions)*\n\n` +
+              `34 styles including:\n` +
+              `• Wash & go\n` +
+              `• Twist-outs & braid-outs\n` +
+              `• Bantu knots\n` +
+              `• Roller sets\n` +
+              `• Blowout & press\n` +
+              `• Afro shaping & sculpting\n` +
+              `• Finger coils`,
+            cat_takedown:
+              `*✂️ Hair Take Down Services*\n\n` +
+              `15 services including:\n` +
+              `• Braid take-down\n` +
+              `• Weave removal\n` +
+              `• Loc removal\n` +
+              `• Wig removal & conditioning\n` +
+              `• Extension detangling`,
+          }
+          const body = catTexts[cat] ?? 'Here are our services.'
+          await sendInteractiveButtons(from, body, [
+            { id: `cmd_book_${cat}`, title: '📅 Book Now' },
+            { id: 'cmd_mainmenu',    title: '🏠 Main Menu' },
+          ], businessPhoneNumberId)
+        }
+
+        // Fetch products from Supabase and show as interactive list for service selection
+        const sendServicePicker = async () => {
+          const { data: prods } = await supabaseAdmin
+            .from('products')
+            .select('id, name, price, currency')
+            .eq('business_id', waOwnerId!)
+            .eq('is_available', true)
+            .order('sort_order')
+            .limit(10)
+          const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
+          if (prods?.length) {
+            await sendInteractiveList(from, businessPhoneNumberId, {
+              bodyText: `*Select your treatment* at ${displayName} 💆‍♀️\n\nAll visits include a complimentary Hair Technician Consultation.`,
+              buttonText: 'Choose Treatment',
+              sections: [{
+                title: 'Available Treatments',
+                rows: prods.map(p => ({
+                  id: `svc_book_${p.id}`,
+                  title: p.name.slice(0, 24),
+                  description: `${SYM[p.currency] ?? p.currency}${Number(p.price).toLocaleString()}`,
+                })),
+              }],
+            })
+          } else if (flowId) {
+            await sendFlowMessage(from, businessPhoneNumberId, {
+              metaFlowId: flowId, screen: 'BOOKING',
+              ctaText: 'Book Now ✨',
+              bodyText: `Book your appointment at ${displayName}`,
+            })
+          }
+        }
+
+        if (selId === 'cmd_book' || selId.startsWith('cmd_book_')) {
+          await sendServicePicker()
+        } else if (selId.startsWith('svc_book_') && flowId && waOwnerId) {
+          const productId = selId.replace('svc_book_', '')
+          const { data: prod } = await supabaseAdmin
+            .from('products').select('id, name, price, currency').eq('id', productId).maybeSingle()
+          if (prod) {
+            const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
+            const sym = SYM[prod.currency] ?? prod.currency
+            const flowResult = await sendFlowMessage(from, businessPhoneNumberId, {
+              metaFlowId: flowId, screen: 'BOOKING',
+              ctaText: 'Confirm Booking ✨',
+              bodyText: `*${prod.name}* — ${sym}${Number(prod.price).toLocaleString()}\n\nFill in your name, preferred date & time. Takes 30 seconds! 🚀`,
+              initialData: { service_id: prod.id, service_name: prod.name, flow_db_id: waOwnerId },
+            })
+            if (flowResult?.error) {
+              console.error('[echoes] flow send error (svc_book):', JSON.stringify(flowResult.error))
+              await sendTextMessage(from, `I couldn't open the booking form right now. Please try again! 🙏`, businessPhoneNumberId)
+            }
+          }
+        } else if (selId === 'cmd_prices') {
+          await sendInteractiveButtons(from,
+            `*${displayName} — Treatment Prices* 💆‍♀️\n\n` +
+            `*💧 Hair Repair & Hydration:*\n` +
+            `• Intense Hydrating — ₦31,000\n` +
+            `• Moisture S.O.S — ₦49,500\n` +
+            `• Bond Builder — ₦38,500\n` +
+            `• Quinoa Protein — ₦31,000\n` +
+            `• Botox Volumising — ₦49,500\n` +
+            `• Molecular Repair — ₦49,500\n` +
+            `• Hair Detox — ₦28,000\n` +
+            `• Hair Rehab — ₦38,500\n` +
+            `• Trim — ₦8,800\n\n` +
+            `*🔬 Scalp Health:* from ₦25,000\n` +
+            `*🎨 Colour:* from ₦35,000\n` +
+            `*💅 Extensions:* from ₦15,000\n` +
+            `*🌀 Natural Styles:* from ₦10,000`,
+            [
+              { id: 'cmd_book',     title: '📅 Book Now' },
+              { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
+            ], businessPhoneNumberId)
+        } else if (selId === 'cmd_mainmenu') {
+          await sendInteractiveList(from, businessPhoneNumberId, {
+            bodyText:
+              `*${displayName}* — how can we help you today? 👇`,
+            buttonText: 'View Services',
+            sections: [
+              {
+                title: 'Treatments',
+                rows: [
+                  { id: 'cat_repair',    title: '💧 Hair Repair',        description: '8 treatments from ₦28,000' },
+                  { id: 'cat_scalp',     title: '🔬 Scalp Health',        description: '5 specialised treatments' },
+                  { id: 'cat_smoothing', title: '✨ Texture & Smoothing',  description: '8 treatments available' },
+                  { id: 'cat_colour',    title: '🎨 Colour Treatments',   description: '3 colour services' },
+                  { id: 'cat_health',    title: '💪 Hair Health',         description: '4 strengthening treatments' },
+                ],
+              },
+              {
+                title: 'Styling',
+                rows: [
+                  { id: 'cat_extensions', title: '💅 Styles + Extensions', description: '49 styles available' },
+                  { id: 'cat_natural',    title: '🌀 Natural Styles',      description: '34 styles available' },
+                  { id: 'cat_takedown',   title: '✂️ Hair Take Down',      description: '15 take-down services' },
+                ],
+              },
+              {
+                title: 'Quick Actions',
+                rows: [
+                  { id: 'cmd_book',   title: '📅 Book Appointment', description: 'Book in under 30 seconds' },
+                  { id: 'cmd_prices', title: '💰 View All Prices',  description: 'Full price list' },
+                ],
+              },
+            ],
+          })
+        } else if (selId.startsWith('cat_')) {
+          await sendCat(selId)
+        }
+
+        return NextResponse.json({ status: 'ok' })
+      }
+    }
+    // ── END ECHOES interactive handler ───────────────────────────────────────
 
     // ── KEY ROUTING CHANGE ───────────────────────────────────────────────────
     // Find ALL contacts with this phone that have been blasted (across every user).

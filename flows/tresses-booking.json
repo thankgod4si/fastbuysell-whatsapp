@@ -1,5 +1,5 @@
 {
-  "version": "6.0",
+  "version": "7.3",
   "screens": [
     {
       "id": "BOOKING",
@@ -7,10 +7,9 @@
       "terminal": true,
       "success": true,
       "data": {
-        "flow_db_id": {
-          "type": "string",
-          "__example__": "user-id-here"
-        }
+        "flow_db_id":   { "type": "string", "__example__": "user-id-here" },
+        "service_id":   { "type": "string", "__example__": "service-uuid-here" },
+        "service_name": { "type": "string", "__example__": "Intense Hydrating Treatment" }
       },
       "layout": {
         "type": "SingleColumnLayout",
@@ -25,20 +24,6 @@
                 "name": "customer_name",
                 "required": true,
                 "input-type": "text"
-              },
-              {
-                "type": "Dropdown",
-                "label": "Select a Treatment",
-                "name": "service_id",
-                "required": true,
-                "data-source": [
-                  { "id": "b26b9576-acd1-4040-9dda-0ea1b4f73fa6", "title": "Intense Hydrating Treatment — ₦31,000" },
-                  { "id": "67024421-de57-48c8-a99c-fdca04efb44d", "title": "Moisture SOS — ₦49,500" },
-                  { "id": "00885a00-ef74-4e87-b6fe-de1ac451adbd", "title": "Bond Builder Treatment — ₦38,500" },
-                  { "id": "b1756751-ba7c-4242-a753-5383759d1d09", "title": "Quinoa Protein Treatment — ₦31,000" },
-                  { "id": "cc59570f-b491-4876-a933-2a7601ba2eae", "title": "Botox Volumising Treatment — ₦49,500" },
-                  { "id": "696351e0-02d0-47df-8da7-6b985074b395", "title": "Molecular Repair Blend — ₦49,500" }
-                ]
               },
               {
                 "type": "DatePicker",
@@ -68,11 +53,12 @@
                 "on-click-action": {
                   "name": "complete",
                   "payload": {
-                    "customer_name": "${form.customer_name}",
-                    "service_id": "${form.service_id}",
+                    "customer_name":  "${form.customer_name}",
+                    "service_id":     "${data.service_id}",
+                    "service_name":   "${data.service_name}",
                     "preferred_date": "${form.preferred_date}",
                     "preferred_time": "${form.preferred_time}",
-                    "flow_db_id": "${data.flow_db_id}"
+                    "flow_db_id":     "${data.flow_db_id}"
                   }
                 }
               }
