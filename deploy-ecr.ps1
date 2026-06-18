@@ -30,7 +30,7 @@ docker push "${ECR_URI}:latest"
 
 Write-Host ">>> Step 5: Delete old failed App Runner service (if exists)" -ForegroundColor Cyan
 aws apprunner delete-service `
-  --service-arn "arn:aws:apprunner:$REGION:$ACCOUNT_ID:service/OutReachhq/97b06dd8f1bb48c688868b09c793e9b2" `
+  --service-arn "arn:aws:apprunner:${REGION}:${ACCOUNT_ID}:service/OutReachhq/97b06dd8f1bb48c688868b09c793e9b2" `
   --region $REGION 2>$null
 
 Write-Host ">>> Waiting 10s for deletion..." -ForegroundColor Yellow
