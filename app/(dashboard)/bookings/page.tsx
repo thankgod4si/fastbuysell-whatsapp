@@ -38,7 +38,7 @@ export default function BookingsPage() {
       .eq('business_id', user.id)
       .order('appointment_date', { ascending: false })
       .order('time_slot',        { ascending: false })
-    setBookings((data as Booking[]) ?? [])
+    setBookings((data as unknown as Booking[]) ?? [])
     setLoading(false)
   }, [])
 
