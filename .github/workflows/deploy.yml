@@ -131,10 +131,6 @@ jobs:
                       \"NEXT_PUBLIC_APP_URL\": \"${{ secrets.NEXT_PUBLIC_APP_URL }}\"
                     }
                   }
-                },
-                \"AuthenticationConfiguration\": {
-                  \"AccessRoleArn\": \"$ROLE_ARN\"
-                },
-                \"AutoDeploymentsEnabled\": false
+                }
               }"
           fi
