@@ -436,7 +436,68 @@ export async function POST(request: Request) {
         } catch (err) {
           console.error('[echoes] booking flow nfm_reply error:', err)
           await sendTextMessage(from, `Thanks! We received your booking request and will confirm shortly. 🙏`, businessPhoneNumberId)
-    } // end nfm_reply
+        }
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // ── Legacy outreach lead form submission ──────────────────────────────
+      // Resolve which user owns this form via flow_db_id (most accurate)
+      let formUserId: string | null = null
+      const flowDbId: string | null = flowData.flow_db_id ?? null
+      if (flowDbId) {
+        const { data: flow } = await supabase.from('flows').select('user_id').eq('id', flowDbId).maybeSingle()
+        formUserId = flow?.user_id ?? null
+      }
+      // Fallbacks
+      if (!formUserId) formUserId = flowData.user_id ?? primaryUserId
+
+      const targetContact = activeContacts?.find(c => c.user_id === formUserId) ?? primaryContact
+
+      const formSummary = [
+        flowData.full_name,
+        flowData.product_service ?? flowData.car_make,
+        flowData.budget ?? flowData.asking_price,
+      ].filter(Boolean).join(' · ')
+
+      await saveInboundMessage({
+        contactId: targetContact?.id,
+        phone: from,
+        content: `Form submitted: ${formSummary || 'Details received'}`,
+        msgType: 'form_submission',
+        userId: formUserId,
+      })
+
+      const { error: leadErr } = await supabase.from('leads').insert({
+        contact_id:      targetContact?.id    ?? null,
+        phone:           from,
+        full_name:       flowData.full_name       ?? null,
+        email:           flowData.email           ?? null,
+        phone_number:    flowData.phone_number     ?? null,
+        company:         flowData.company          ?? null,
+        product_service: flowData.product_service  ?? null,
+        budget:          flowData.budget           ?? null,
+        location:        flowData.location         ?? null,
+        timeline:        flowData.timeline         ?? null,
+        notes:           flowData.notes            ?? null,
+        car_make:        flowData.car_make         ?? null,
+        car_model:       flowData.car_model        ?? null,
+        car_year:        flowData.car_year         ?? null,
+        mileage:         flowData.mileage          ?? null,
+        asking_price:    flowData.asking_price     ?? null,
+        previous_owners: flowData.previous_owners  ?? null,
+        condition:       flowData.condition        ?? null,
+        response_data:   flowData,
+        status:          'new',
+        source:          'whatsapp',
+        user_id:         formUserId,
+      })
+
+      if (leadErr) {
+        console.error('[webhook] lead insert error:', leadErr.message)
+      } else {
+        console.log(`[webhook] lead saved formUserId=${formUserId} contactId=${targetContact?.id}`)
+      }
+    }
 
     // ── Payment button reply handler ──────────────────────────────────────────
     if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
@@ -506,68 +567,6 @@ export async function POST(request: Request) {
         }
 
         return NextResponse.json({ status: 'ok' })
-      }
-    }
-        }
-        return NextResponse.json({ status: 'ok' })
-      }
-
-      // ── Legacy outreach lead form submission ──────────────────────────────
-      // Resolve which user owns this form via flow_db_id (most accurate)
-      let formUserId: string | null = null
-      const flowDbId: string | null = flowData.flow_db_id ?? null
-      if (flowDbId) {
-        const { data: flow } = await supabase.from('flows').select('user_id').eq('id', flowDbId).maybeSingle()
-        formUserId = flow?.user_id ?? null
-      }
-      // Fallbacks
-      if (!formUserId) formUserId = flowData.user_id ?? primaryUserId
-
-      const targetContact = activeContacts?.find(c => c.user_id === formUserId) ?? primaryContact
-
-      const formSummary = [
-        flowData.full_name,
-        flowData.product_service ?? flowData.car_make,
-        flowData.budget ?? flowData.asking_price,
-      ].filter(Boolean).join(' · ')
-
-      await saveInboundMessage({
-        contactId: targetContact?.id,
-        phone: from,
-        content: `Form submitted: ${formSummary || 'Details received'}`,
-        msgType: 'form_submission',
-        userId: formUserId,
-      })
-
-      const { error: leadErr } = await supabase.from('leads').insert({
-        contact_id:      targetContact?.id    ?? null,
-        phone:           from,
-        full_name:       flowData.full_name       ?? null,
-        email:           flowData.email           ?? null,
-        phone_number:    flowData.phone_number     ?? null,
-        company:         flowData.company          ?? null,
-        product_service: flowData.product_service  ?? null,
-        budget:          flowData.budget           ?? null,
-        location:        flowData.location         ?? null,
-        timeline:        flowData.timeline         ?? null,
-        notes:           flowData.notes            ?? null,
-        car_make:        flowData.car_make         ?? null,
-        car_model:       flowData.car_model        ?? null,
-        car_year:        flowData.car_year         ?? null,
-        mileage:         flowData.mileage          ?? null,
-        asking_price:    flowData.asking_price     ?? null,
-        previous_owners: flowData.previous_owners  ?? null,
-        condition:       flowData.condition        ?? null,
-        response_data:   flowData,
-        status:          'new',
-        source:          'whatsapp',
-        user_id:         formUserId,
-      })
-
-      if (leadErr) {
-        console.error('[webhook] lead insert error:', leadErr.message)
-      } else {
-        console.log(`[webhook] lead saved formUserId=${formUserId} contactId=${targetContact?.id}`)
       }
     }
 
