@@ -1,0 +1,85 @@
+{
+  "version": "6.0",
+  "screens": [
+    {
+      "id": "BOOKING",
+      "title": "Book Your Appointment",
+      "terminal": true,
+      "success": true,
+      "data": {
+        "flow_db_id": {
+          "type": "string",
+          "__example__": "user-id-here"
+        }
+      },
+      "layout": {
+        "type": "SingleColumnLayout",
+        "children": [
+          {
+            "type": "Form",
+            "name": "booking_form",
+            "children": [
+              {
+                "type": "TextInput",
+                "label": "Your Full Name",
+                "name": "customer_name",
+                "required": true,
+                "input-type": "text"
+              },
+              {
+                "type": "Dropdown",
+                "label": "Select a Treatment",
+                "name": "service_id",
+                "required": true,
+                "data-source": [
+                  { "id": "intense-hydrating", "title": "Intense Hydrating Treatment — ₦31,000" },
+                  { "id": "moisture-sos", "title": "Moisture SOS — ₦49,500" },
+                  { "id": "bond-builder", "title": "Bond Builder Treatment — ₦38,500" },
+                  { "id": "quinoa-protein", "title": "Quinoa Protein Treatment — ₦31,000" },
+                  { "id": "botox-volumising", "title": "Botox Volumising Treatment — ₦49,500" },
+                  { "id": "molecular-repair", "title": "Molecular Repair Blend — ₦49,500" }
+                ]
+              },
+              {
+                "type": "DatePicker",
+                "label": "Preferred Date",
+                "name": "preferred_date",
+                "required": true
+              },
+              {
+                "type": "Dropdown",
+                "label": "Preferred Time",
+                "name": "preferred_time",
+                "required": true,
+                "data-source": [
+                  { "id": "09:00", "title": "9:00 AM" },
+                  { "id": "10:00", "title": "10:00 AM" },
+                  { "id": "11:00", "title": "11:00 AM" },
+                  { "id": "12:00", "title": "12:00 PM" },
+                  { "id": "13:00", "title": "1:00 PM" },
+                  { "id": "14:00", "title": "2:00 PM" },
+                  { "id": "15:00", "title": "3:00 PM" },
+                  { "id": "16:00", "title": "4:00 PM" }
+                ]
+              },
+              {
+                "type": "Footer",
+                "label": "Confirm Booking",
+                "on-click-action": {
+                  "name": "complete",
+                  "payload": {
+                    "customer_name": "${form.customer_name}",
+                    "service_id": "${form.service_id}",
+                    "preferred_date": "${form.preferred_date}",
+                    "preferred_time": "${form.preferred_time}",
+                    "flow_db_id": "${data.flow_db_id}"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

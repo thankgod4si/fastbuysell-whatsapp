@@ -318,6 +318,17 @@ export async function POST(request: Request) {
 
           // Find the product/service selected
           const serviceId: string = flowData.service_id
+
+          // Static service catalogue fallback (used when service_id is a slug, not a DB uuid)
+          const STATIC_SERVICES: Record<string, { name: string; price: number; currency: string }> = {
+            'intense-hydrating': { name: 'Intense Hydrating Treatment', price: 31000, currency: 'NGN' },
+            'moisture-sos':      { name: 'Moisture SOS',                 price: 49500, currency: 'NGN' },
+            'bond-builder':      { name: 'Bond Builder Treatment',        price: 38500, currency: 'NGN' },
+            'quinoa-protein':    { name: 'Quinoa Protein Treatment',      price: 31000, currency: 'NGN' },
+            'botox-volumising':  { name: 'Botox Volumising Treatment',    price: 49500, currency: 'NGN' },
+            'molecular-repair':  { name: 'Molecular Repair Blend',        price: 49500, currency: 'NGN' },
+          }
+
           const { data: svc } = await supabaseAdmin
             .from('products')
             .select('id, name, price, currency')
@@ -329,9 +340,11 @@ export async function POST(request: Request) {
             .select('id, service_name, price, currency')
             .eq('id', serviceId)
             .maybeSingle()
-          const serviceName = svc?.name ?? svcMenu?.service_name ?? 'Service'
-          const servicePrice = Number(svc?.price ?? svcMenu?.price ?? 0)
-          const currency     = svc?.currency ?? svcMenu?.currency ?? 'NGN'
+          // Final fallback: static slug map
+          const staticSvc = STATIC_SERVICES[serviceId]
+          const serviceName  = svc?.name ?? svcMenu?.service_name ?? staticSvc?.name ?? 'Service'
+          const servicePrice = Number(svc?.price ?? svcMenu?.price ?? staticSvc?.price ?? 0)
+          const currency     = svc?.currency ?? svcMenu?.currency ?? staticSvc?.currency ?? 'NGN'
           const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
           const sym = SYM[currency] ?? currency
 
