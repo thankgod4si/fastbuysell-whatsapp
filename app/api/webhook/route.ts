@@ -564,6 +564,44 @@ export async function POST(request: Request) {
         const displayName = echoesProfInteractive.business_display_name ?? 'us'
         const flowId      = echoesProfInteractive.booking_flow_id
 
+        const sendMainMenu = async () => {
+          const firstName = waName ? waName.split(' ')[0] : ''
+          await sendInteractiveList(from, businessPhoneNumberId, {
+            bodyText:
+              `Hi${firstName ? ` ${firstName}` : ''}! 👋 Welcome to *${displayName}*.\n\n` +
+              `We're a trichology-led hair & scalp clinic. Every visit starts with a complimentary consultation.\n\n` +
+              `How can we help you today? 👇`,
+            buttonText: 'View Services',
+            sections: [
+              {
+                title: 'Treatments',
+                rows: [
+                  { id: 'cat_repair',    title: '💧 Hair Repair',        description: '8 treatments from ₦28,000' },
+                  { id: 'cat_scalp',     title: '🔬 Scalp Health',        description: '5 specialised treatments' },
+                  { id: 'cat_smoothing', title: '✨ Texture & Smoothing',  description: '8 treatments available' },
+                  { id: 'cat_colour',    title: '🎨 Colour Treatments',   description: '3 colour services' },
+                  { id: 'cat_health',    title: '💪 Hair Health',         description: '4 strengthening treatments' },
+                ],
+              },
+              {
+                title: 'Styling',
+                rows: [
+                  { id: 'cat_extensions', title: '💅 Styles + Extensions', description: '49 styles available' },
+                  { id: 'cat_natural',    title: '🌀 Natural Styles',      description: '34 styles available' },
+                  { id: 'cat_takedown',   title: '✂️ Hair Take Down',      description: '15 take-down services' },
+                ],
+              },
+              {
+                title: 'Quick Actions',
+                rows: [
+                  { id: 'cmd_book',   title: '📅 Book Appointment', description: 'Book in under 30 seconds' },
+                  { id: 'cmd_prices', title: '💰 View All Prices',  description: 'Full price list' },
+                ],
+              },
+            ],
+          })
+        }
+
         // Shows the image card + "Browse Services" button for a category
         const sendCat = async (cat: string) => {
           const catData = ECHOES_CATALOG[cat]
@@ -651,7 +689,7 @@ export async function POST(request: Request) {
                 await sendTextMessage(from, `I couldn't open the booking form right now. Please try again! 🙏`, businessPhoneNumberId)
               }
             }
-            await saveInboundMessage({ phone: from, content: `Selected service: ${svc.name}`, msgType: 'list_reply', userId: waOwnerId })
+            await saveInboundMessage({ phone: from, content: `Selected service: ${svc.name}`, msgType: 'button_reply', userId: waOwnerId })
           } else {
             await sendTextMessage(from, `Sorry, I couldn't find that service. Type *menu* to see all options.`, businessPhoneNumberId)
           }
@@ -677,38 +715,7 @@ export async function POST(request: Request) {
               { id: 'cmd_mainmenu', title: '🏠 Main Menu' },
             ], businessPhoneNumberId)
         } else if (selId === 'cmd_mainmenu') {
-          await sendInteractiveList(from, businessPhoneNumberId, {
-            bodyText:
-              `*${displayName}* — how can we help you today? 👇`,
-            buttonText: 'View Services',
-            sections: [
-              {
-                title: 'Treatments',
-                rows: [
-                  { id: 'cat_repair',    title: '💧 Hair Repair',        description: '8 treatments from ₦28,000' },
-                  { id: 'cat_scalp',     title: '🔬 Scalp Health',        description: '5 specialised treatments' },
-                  { id: 'cat_smoothing', title: '✨ Texture & Smoothing',  description: '8 treatments available' },
-                  { id: 'cat_colour',    title: '🎨 Colour Treatments',   description: '3 colour services' },
-                  { id: 'cat_health',    title: '💪 Hair Health',         description: '4 strengthening treatments' },
-                ],
-              },
-              {
-                title: 'Styling',
-                rows: [
-                  { id: 'cat_extensions', title: '💅 Styles + Extensions', description: '49 styles available' },
-                  { id: 'cat_natural',    title: '🌀 Natural Styles',      description: '34 styles available' },
-                  { id: 'cat_takedown',   title: '✂️ Hair Take Down',      description: '15 take-down services' },
-                ],
-              },
-              {
-                title: 'Quick Actions',
-                rows: [
-                  { id: 'cmd_book',   title: '📅 Book Appointment', description: 'Book in under 30 seconds' },
-                  { id: 'cmd_prices', title: '💰 View All Prices',  description: 'Full price list' },
-                ],
-              },
-            ],
-          })
+          await sendMainMenu()
         } else if (selId.startsWith('cat_')) {
           // Show the service list directly so customers can pick and book in one tap
           await sendCatList(selId)
