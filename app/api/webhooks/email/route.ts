@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
 import { updateMessageStatus } from '@/lib/message-log'
 import type { MessageStatus } from '@/lib/message-log'

@@ -1,10 +1,9 @@
 import { Resend } from 'resend'
 
-const DEFAULT_RESEND = new Resend(process.env.RESEND_API_KEY!)
 const PLATFORM_FROM = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@trysofi.co>'
 
 function client(apiKey?: string) {
-  return apiKey ? new Resend(apiKey) : DEFAULT_RESEND
+  return new Resend(apiKey ?? process.env.RESEND_API_KEY!)
 }
 
 // ─── WhatsApp lead follow-up email ─────────────────────────────────────────

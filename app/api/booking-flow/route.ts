@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * POST /api/booking-flow
  * Creates or refreshes the WhatsApp booking flow for the logged-in business.

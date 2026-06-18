@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 /**
  * app/api/webhooks/sofi/route.ts
  * 

@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
@@ -470,6 +472,29 @@ export async function POST(request: Request) {
     if (message.type === 'interactive' && message.interactive?.type === 'button_reply') {
       const btnId: string = message.interactive?.button_reply?.id ?? ''
 
+      // Helper: send a "I've Paid" confirmation button after payment instructions
+      async function sendConfirmButton(bookingId: string) {
+        await fetch(`https://graph.facebook.com/v21.0/${businessPhoneNumberId}/messages`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: from,
+            type: 'interactive',
+            interactive: {
+              type: 'button',
+              body: { text: `Once you've completed the payment, tap the button below to confirm your booking! 👇` },
+              action: {
+                buttons: [
+                  { type: 'reply', reply: { id: `pay_confirm___${bookingId}`, title: "✅ I've Paid" } },
+                ],
+              },
+            },
+          }),
+        })
+      }
+
+      // ── Step 1: Customer chooses payment method ───────────────────────────
       if (btnId.startsWith('pay_card___') || btnId.startsWith('pay_transfer___') || btnId.startsWith('pay_ussd___')) {
         const serviceId = btnId.split('___')[1] ?? ''
 
@@ -485,38 +510,98 @@ export async function POST(request: Request) {
           .eq('id', serviceId)
           .maybeSingle()
 
-        const symMap: Record<string, string> = { NGN: 'N', EUR: '€', USD: '$', GBP: '£' }
+        const symMap: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
         const currency   = svc?.currency ?? 'NGN'
         const sym        = symMap[currency] ?? currency
         const svcPrice   = Number(svc?.price ?? 0)
         const svcName    = svc?.name ?? 'Service'
         const bizName    = bProfile?.business_display_name ?? 'us'
 
+        // Find the latest pending booking for this customer + service
+        const { data: pendingBooking } = await supabaseAdmin
+          .from('bookings')
+          .select('id')
+          .eq('customer_phone', from)
+          .eq('service_id', serviceId)
+          .eq('payment_status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
         if (btnId.startsWith('pay_card___')) {
-          await sendTextMessage(from, `💳 *Card Payment*\n\nPlease contact us to complete your card payment for *${svcName}* — ${sym}${svcPrice.toLocaleString()}. We'll send you a secure payment link shortly! 🙏`, businessPhoneNumberId)
+          await sendTextMessage(from,
+            `💳 *Card Payment*\n\n` +
+            `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
+            `We'll send you a secure payment link shortly. Once payment is complete, tap the button below to confirm! 🙏`,
+            businessPhoneNumberId)
         } else if (btnId.startsWith('pay_transfer___')) {
-          const bankName    = bProfile?.bank_name     ?? '(bank not set — please contact us)'
-          const accNum      = bProfile?.account_number ?? '(not set)'
-          const accName     = bProfile?.account_name  ?? bizName
-          const msg =
-            `💳 *Bank Transfer Details*\n\n` +
+          const bankName = bProfile?.bank_name     ?? '(bank not set — please contact us)'
+          const accNum   = bProfile?.account_number ?? '(not set)'
+          const accName  = bProfile?.account_name  ?? bizName
+          await sendTextMessage(from,
+            `🏦 *Bank Transfer Details*\n\n` +
             `📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\n` +
             `Please transfer the exact amount to:\n\n` +
             `🏦 *Bank:* ${bankName}\n` +
             `📟 *Account Number:* ${accNum}\n` +
             `👤 *Account Name:* ${accName}\n\n` +
-            `After payment, send a screenshot of your receipt here to confirm your booking. ✅`
-          await sendTextMessage(from, msg, businessPhoneNumberId)
+            `After making the transfer, tap the button below to confirm! ✅`,
+            businessPhoneNumberId)
         } else if (btnId.startsWith('pay_ussd___')) {
           const bankName = bProfile?.bank_name     ?? ''
           const accNum   = bProfile?.account_number ?? ''
-          const msg =
+          await sendTextMessage(from,
             `📱 *Pay with USSD*\n\n` +
             `Dial your bank's USSD code and transfer *${sym}${svcPrice.toLocaleString()}* to:\n\n` +
             `🏦 *Bank:* ${bankName}\n` +
             `📟 *Account:* ${accNum}\n\n` +
-            `Send your receipt here after payment. ✅`
-          await sendTextMessage(from, msg, businessPhoneNumberId)
+            `After paying, tap the button below to confirm! ✅`,
+            businessPhoneNumberId)
+        }
+
+        if (pendingBooking?.id) {
+          await sendConfirmButton(pendingBooking.id)
+        }
+
+        return NextResponse.json({ status: 'ok' })
+      }
+
+      // ── Step 2: Customer taps "I've Paid" ─────────────────────────────────
+      if (btnId.startsWith('pay_confirm___')) {
+        const bookingId = btnId.replace('pay_confirm___', '')
+
+        const { data: booking } = await supabaseAdmin
+          .from('bookings')
+          .select('id, customer_name, service_id, appointment_date, time_slot, business_id, payment_status')
+          .eq('id', bookingId)
+          .maybeSingle()
+
+        if (booking) {
+          // Mark booking as paid
+          await supabaseAdmin.from('bookings').update({ payment_status: 'paid' }).eq('id', bookingId)
+          await supabaseAdmin.from('booking_transactions').update({ status: 'confirmed' }).eq('booking_id', bookingId)
+
+          // Get service name for the confirmation message
+          const { data: svc } = await supabaseAdmin
+            .from('products').select('name').eq('id', booking.service_id).maybeSingle()
+          const svcName = svc?.name ?? 'your service'
+
+          // Send confirmation to customer
+          await sendTextMessage(from,
+            `🎉 *Booking Confirmed!*\n\n` +
+            `Thank you, ${booking.customer_name}! Your payment has been received and your appointment is confirmed.\n\n` +
+            `📋 *${svcName}*\n` +
+            `📅 ${booking.appointment_date} at ${booking.time_slot}\n\n` +
+            `We look forward to seeing you! See you soon 🙌`,
+            businessPhoneNumberId)
+
+          // Log the confirmation
+          await saveInboundMessage({
+            phone: from,
+            content: `Payment confirmed for: ${svcName} on ${booking.appointment_date}`,
+            msgType: 'button_reply',
+            userId: booking.business_id,
+          })
         }
 
         return NextResponse.json({ status: 'ok' })
