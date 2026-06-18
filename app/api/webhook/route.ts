@@ -493,21 +493,7 @@ export async function POST(request: Request) {
         const bizName    = bProfile?.business_display_name ?? 'us'
 
         if (btnId.startsWith('pay_card___')) {
-          // Generate Sofi payment link
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://outreachhq.xyz'
-          const payResult = await generatePaymentLink({
-            amount:          svcPrice * 100,
-            currency,
-            description:     `Booking: ${svcName} at ${bizName}`,
-            callback_url:    `${appUrl}/api/webhooks/sofi`,
-            metadata:        { customer_phone: from, service_id: serviceId },
-          })
-          if (payResult.success) {
-            const msg = `✅ *Payment Link Ready!*\n\n📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\nPay securely with your card here:\n${payResult.payment_link}\n\nYour appointment is held for 30 minutes ⏳`
-            await sendTextMessage(from, msg, businessPhoneNumberId)
-          } else {
-            await sendTextMessage(from, `Sorry, I had trouble generating your payment link. Please try again! 🙏`, businessPhoneNumberId)
-          }
+          await sendTextMessage(from, `💳 *Card Payment*\n\nPlease contact us to complete your card payment for *${svcName}* — ${sym}${svcPrice.toLocaleString()}. We'll send you a secure payment link shortly! 🙏`, businessPhoneNumberId)
         } else if (btnId.startsWith('pay_transfer___')) {
           const bankName    = bProfile?.bank_name     ?? '(bank not set — please contact us)'
           const accNum      = bProfile?.account_number ?? '(not set)'
