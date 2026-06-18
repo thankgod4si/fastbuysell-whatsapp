@@ -10,6 +10,82 @@ import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
+// ── Tresses Lagos service catalog (all categories, used for interactive lists + price lookup) ──
+const ECHOES_CATALOG: Record<string, { title: string; rows: Array<{ id: string; name: string; price: number; dur: string }> }> = {
+  cat_repair: { title: '💧 Hair Repair & Hydration', rows: [
+    { id: 'b26b9576-acd1-4040-9dda-0ea1b4f73fa6', name: 'Intense Hydrating',      price: 31000, dur: '1hr 30min' },
+    { id: '67024421-de57-48c8-a99c-fdca04efb44d', name: 'Moisture SOS',            price: 49500, dur: '1hr 30min' },
+    { id: '00885a00-ef74-4e87-b6fe-de1ac451adbd', name: 'Bond Builder',             price: 38500, dur: '1hr 30min' },
+    { id: 'b1756751-ba7c-4242-a753-5383759d1d09', name: 'Quinoa Protein',           price: 31000, dur: '1hr 30min' },
+    { id: 'cc59570f-b491-4876-a933-2a7601ba2eae', name: 'Botox Volumising',         price: 49500, dur: '1hr 30min' },
+    { id: '696351e0-02d0-47df-8da7-6b985074b395', name: 'Molecular Repair Blend',   price: 49500, dur: '1hr 30min' },
+    { id: 'hair-detox',   name: 'Hair Detoxification', price: 28000, dur: '30min'      },
+    { id: 'hair-rehab',   name: 'Hair Rehab Treatment', price: 38500, dur: '1hr 30min' },
+    { id: 'hair-trim',    name: 'Hair Trim',             price: 8800,  dur: '30min'    },
+  ]},
+  cat_scalp: { title: '🔬 Scalp Health', rows: [
+    { id: 'scalp-analysis',    name: 'Scalp Analysis & Consult', price: 15000, dur: '45min'     },
+    { id: 'scalp-detox',       name: 'Scalp Detox & Purification', price: 25000, dur: '1hr'    },
+    { id: 'follicle-stim',     name: 'Follicle Stimulation',      price: 35000, dur: '1hr'     },
+    { id: 'sebum-balance',     name: 'Sebum Balancing Treatment', price: 28000, dur: '1hr'     },
+    { id: 'scalp-microneedle', name: 'Scalp Micro-needling',      price: 45000, dur: '1hr 15m' },
+  ]},
+  cat_smoothing: { title: '✨ Smoothing & Texture', rows: [
+    { id: 'keratin-smooth',    name: 'Keratin Smoothing',         price: 85000,  dur: '3hr'  },
+    { id: 'japanese-straight', name: 'Japanese Straightening',    price: 120000, dur: '4hr'  },
+    { id: 'relaxer-app',       name: 'Relaxer Application',       price: 25000,  dur: '2hr'  },
+    { id: 'texture-soften',    name: 'Texture Softening',         price: 45000,  dur: '2hr'  },
+    { id: 'curl-define',       name: 'Curl Definition Treatment', price: 35000,  dur: '2hr'  },
+    { id: 'brazilian-blowout', name: 'Brazilian Blowout',         price: 75000,  dur: '3hr'  },
+    { id: 'thermal-recond',    name: 'Thermal Reconditioning',    price: 95000,  dur: '4hr'  },
+    { id: 'natural-curl-enh',  name: 'Natural Curl Enhancement',  price: 38000,  dur: '2hr'  },
+  ]},
+  cat_colour: { title: '🎨 Colour Treatments', rows: [
+    { id: 'full-colour',    name: 'Full Colour Application', price: 55000,  dur: '2hr 30m' },
+    { id: 'highlights',     name: 'Highlights & Balayage',   price: 85000,  dur: '3hr'     },
+    { id: 'colour-correct', name: 'Colour Correction',       price: 120000, dur: '4hr+'    },
+  ]},
+  cat_health: { title: '💪 Hair Health', rows: [
+    { id: 'plant-stem',    name: 'Plant Stem Cell Treatment',    price: 45000, dur: '1hr 30m' },
+    { id: 'derma-stim',    name: 'Derma Stimulating Scalp',      price: 38000, dur: '1hr'     },
+    { id: 'prp-growth',    name: 'PRP Hair Growth Treatment',    price: 85000, dur: '1hr 30m' },
+    { id: 'biotin-infuse', name: 'Biotin Infusion Treatment',    price: 42000, dur: '1hr'     },
+  ]},
+  cat_extensions: { title: '💅 Styles With Extensions', rows: [
+    { id: 'knotless-braids',   name: 'Knotless Box Braids',         price: 45000, dur: '4hr+' },
+    { id: 'sew-in-weave',      name: 'Sew-In Weave Install',        price: 35000, dur: '3hr'  },
+    { id: 'wig-install',       name: 'Wig Install & Customise',     price: 25000, dur: '2hr'  },
+    { id: 'faux-locs',         name: 'Faux Locs',                   price: 55000, dur: '5hr+' },
+    { id: 'goddess-locs',      name: 'Goddess Locs',                price: 65000, dur: '6hr+' },
+    { id: 'crochet-braids',    name: 'Crochet Braids',              price: 30000, dur: '3hr'  },
+    { id: 'feed-in-braids',    name: 'Feed-In Braids',              price: 28000, dur: '2hr 30m' },
+    { id: 'cornrows',          name: 'Cornrows',                    price: 15000, dur: '2hr'  },
+    { id: 'senegalese-twists', name: 'Senegalese Twists',           price: 50000, dur: '5hr'  },
+    { id: 'marley-twists',     name: 'Marley Twists',               price: 45000, dur: '4hr'  },
+  ]},
+  cat_natural: { title: '🌀 Natural Styles', rows: [
+    { id: 'wash-go',       name: 'Wash & Go',             price: 15000, dur: '1hr'     },
+    { id: 'twist-out',     name: 'Twist-Out',             price: 12000, dur: '1hr'     },
+    { id: 'braid-out',     name: 'Braid-Out',             price: 12000, dur: '1hr'     },
+    { id: 'bantu-knots',   name: 'Bantu Knots',           price: 18000, dur: '1hr 30m' },
+    { id: 'roller-set',    name: 'Roller Set',            price: 20000, dur: '2hr'     },
+    { id: 'blowout-press', name: 'Blowout & Press',       price: 25000, dur: '1hr 30m' },
+    { id: 'afro-shape',    name: 'Afro Shaping & Sculpt', price: 18000, dur: '1hr'     },
+    { id: 'finger-coils',  name: 'Finger Coils',          price: 22000, dur: '2hr'     },
+    { id: 'perm-rod-set',  name: 'Perm Rod Set',          price: 22000, dur: '2hr'     },
+    { id: 'flexi-rod-set', name: 'Flexi Rod Set',         price: 20000, dur: '2hr'     },
+  ]},
+  cat_takedown: { title: '✂️ Hair Take Down', rows: [
+    { id: 'braid-takedown', name: 'Braid Take-Down',            price: 12000, dur: '1hr'  },
+    { id: 'weave-removal',  name: 'Weave Removal',              price: 8000,  dur: '30min' },
+    { id: 'loc-removal',    name: 'Loc Removal',                price: 35000, dur: '3hr+' },
+    { id: 'wig-removal',    name: 'Wig Removal & Conditioning', price: 10000, dur: '45min' },
+    { id: 'ext-detangle',   name: 'Extension Detangling',       price: 15000, dur: '1hr'  },
+  ]},
+}
+// Flat lookup for price/name by slug
+const CATALOG_FLAT = Object.values(ECHOES_CATALOG).flatMap(c => c.rows)
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const mode      = searchParams.get('hub.mode')
@@ -99,89 +175,20 @@ export async function POST(request: Request) {
             // ── Keyword menu shortcuts (interactive) ───────────────────────
             const kw = text.trim().toLowerCase()
 
-            // Helper: send service category detail with Book + Main Menu buttons
+            // Helper: send service category as interactive list so customers can tap to book
             const sendCategoryInfo = async (cat: string) => {
-              const catTexts: Record<string, string> = {
-                cat_repair:
-                  `*💧 Hair Repair & Hydration*\n\n` +
-                  `• Intense Hydrating Treatment — ₦31,000 _(1hr 30min)_\n` +
-                  `  _Ultra-detangling; long-lasting hydration & frizz reduction_\n\n` +
-                  `• Moisture S.O.S Treatment — ₦49,500 _(1hr 30min)_\n` +
-                  `  _Deep moisture locking; hydrated up to 6 weeks_\n\n` +
-                  `• Bond Builder Treatment — ₦38,500 _(1hr 30min)_\n` +
-                  `  _Rebuilds broken bonds; ideal for chemically treated hair_\n\n` +
-                  `• Quinoa Protein Treatment — ₦31,000 _(1hr 30min)_\n` +
-                  `  _Plant-based protein strengthening_\n\n` +
-                  `• Botox Volumising Treatment — ₦49,500 _(1hr 30min)_\n` +
-                  `  _Smooths frizz & adds volume without chemicals_\n\n` +
-                  `• Molecular Repair Blend — ₦49,500 _(1hr 30min)_\n` +
-                  `  _Advanced molecular repair for severely damaged hair_\n\n` +
-                  `• Hair Detoxification — ₦28,000 _(30min)_\n` +
-                  `  _Removes minerals & residue from extensions & hard water_\n\n` +
-                  `• Hair Rehab Treatment — ₦38,500 _(1hr 30min)_\n` +
-                  `  _Fusion of moisture & protein therapy_`,
-                cat_scalp:
-                  `*🔬 Scalp Health Enhancements*\n\n` +
-                  `5 specialised treatments:\n` +
-                  `• Scalp analysis & consultation\n` +
-                  `• Scalp detox & purification\n` +
-                  `• Follicle stimulation therapy\n` +
-                  `• Sebum balancing treatment\n\n` +
-                  `Every visit begins with a complimentary Hair Technician Consultation.`,
-                cat_smoothing:
-                  `*✨ Smoothing, Straightening & Texture Transformation*\n\n` +
-                  `8 treatments including:\n` +
-                  `• Keratin smoothing\n` +
-                  `• Japanese straightening\n` +
-                  `• Relaxer application\n` +
-                  `• Texture softening\n` +
-                  `• Curl definition treatments`,
-                cat_colour:
-                  `*🎨 Colour Treatments*\n\n` +
-                  `3 services including:\n` +
-                  `• Full colour application\n` +
-                  `• Highlights & balayage\n` +
-                  `• Colour correction\n\n` +
-                  `Every colour service includes a complimentary consultation.`,
-                cat_health:
-                  `*💪 Hair Health Enhancements*\n\n` +
-                  `4 treatments to strengthen and revitalise your hair — protein treatments, growth stimulation, and deep conditioning.`,
-                cat_extensions:
-                  `*💅 Styles With Extensions*\n\n` +
-                  `49 styles available including:\n` +
-                  `• Box braids & knotless braids\n` +
-                  `• Weave installs & sew-ins\n` +
-                  `• Wig installs & customisation\n` +
-                  `• Faux locs & goddess locs\n` +
-                  `• Crochet styles\n` +
-                  `• Feed-in braids & cornrows\n` +
-                  `• Twists (Senegalese, Marley, etc.)`,
-                cat_natural:
-                  `*🌀 Natural Styles (No Extensions)*\n\n` +
-                  `34 styles including:\n` +
-                  `• Wash & go\n` +
-                  `• Twist-outs & braid-outs\n` +
-                  `• Bantu knots\n` +
-                  `• Roller sets\n` +
-                  `• Blowout & press\n` +
-                  `• Afro shaping & sculpting\n` +
-                  `• Finger coils`,
-                cat_takedown:
-                  `*✂️ Hair Take Down Services*\n\n` +
-                  `15 services including:\n` +
-                  `• Braid take-down\n` +
-                  `• Weave removal\n` +
-                  `• Loc removal\n` +
-                  `• Wig removal & conditioning\n` +
-                  `• Extension detangling`,
-              }
-              const body = catTexts[cat] ?? 'Here are our services.'
-              await sendInteractiveButtons(from, body, [
-                { id: `cmd_book_${cat}`, title: '📅 Book Now' },
-                { id: 'cmd_mainmenu',    title: '🏠 Main Menu' },
-              ], businessPhoneNumberId)
+              const catData = ECHOES_CATALOG[cat]
+              if (!catData) { await sendMainMenu(); return }
+              await sendInteractiveList(from, businessPhoneNumberId, {
+                bodyText: `*${catData.title}*\n\nSelect a service below. All visits include a complimentary consultation. 💆‍♀️`,
+                buttonText: 'Choose Service',
+                sections: [{ title: 'Tap a service to book', rows: catData.rows.slice(0, 10).map(s => ({
+                  id: `svc_book_${s.id}`,
+                  title: s.name.slice(0, 24),
+                  description: `₦${s.price.toLocaleString()} · ${s.dur}`,
+                })) }],
+              })
             }
-
             // Helper: send the main interactive list menu
             const sendMainMenu = async () => {
               const firstName = waName ? waName.split(' ')[0] : ''
@@ -473,87 +480,18 @@ export async function POST(request: Request) {
         const flowId      = echoesProfInteractive.booking_flow_id
 
         const sendCat = async (cat: string) => {
-          const catTexts: Record<string, string> = {
-            cat_repair:
-              `*💧 Hair Repair & Hydration*\n\n` +
-              `• Intense Hydrating Treatment — ₦31,000 _(1hr 30min)_\n` +
-              `  _Ultra-detangling; long-lasting hydration & frizz reduction_\n\n` +
-              `• Moisture S.O.S Treatment — ₦49,500 _(1hr 30min)_\n` +
-              `  _Deep moisture locking; hydrated up to 6 weeks_\n\n` +
-              `• Bond Builder Treatment — ₦38,500 _(1hr 30min)_\n` +
-              `  _Rebuilds broken bonds; ideal for chemically treated hair_\n\n` +
-              `• Quinoa Protein Treatment — ₦31,000 _(1hr 30min)_\n` +
-              `  _Plant-based protein strengthening_\n\n` +
-              `• Botox Volumising Treatment — ₦49,500 _(1hr 30min)_\n` +
-              `  _Smooths frizz & adds volume without chemicals_\n\n` +
-              `• Molecular Repair Blend — ₦49,500 _(1hr 30min)_\n` +
-              `  _Advanced molecular repair for severely damaged hair_\n\n` +
-              `• Hair Detoxification — ₦28,000 _(30min)_\n` +
-              `  _Removes minerals & residue from extensions & hard water_\n\n` +
-              `• Hair Rehab Treatment — ₦38,500 _(1hr 30min)_\n` +
-              `  _Fusion of moisture & protein therapy_`,
-            cat_scalp:
-              `*🔬 Scalp Health Enhancements*\n\n` +
-              `5 specialised treatments including:\n` +
-              `• Scalp analysis & consultation\n` +
-              `• Scalp detox & purification\n` +
-              `• Follicle stimulation therapy\n` +
-              `• Sebum balancing treatment\n\n` +
-              `Every visit begins with a complimentary Hair Technician Consultation.`,
-            cat_smoothing:
-              `*✨ Smoothing, Straightening & Texture Transformation*\n\n` +
-              `8 treatments including:\n` +
-              `• Keratin smoothing\n` +
-              `• Japanese straightening\n` +
-              `• Relaxer application\n` +
-              `• Texture softening\n` +
-              `• Curl definition treatments`,
-            cat_colour:
-              `*🎨 Colour Treatments*\n\n` +
-              `3 services including:\n` +
-              `• Full colour application\n` +
-              `• Highlights & balayage\n` +
-              `• Colour correction\n\n` +
-              `Every colour service includes a complimentary consultation.`,
-            cat_health:
-              `*💪 Hair Health Enhancements*\n\n` +
-              `4 treatments to strengthen and revitalise your hair from root to tip — protein treatments, growth stimulation, and deep conditioning.`,
-            cat_extensions:
-              `*💅 Styles With Extensions*\n\n` +
-              `49 styles available including:\n` +
-              `• Box braids & knotless braids\n` +
-              `• Weave installs & sew-ins\n` +
-              `• Wig installs & customisation\n` +
-              `• Faux locs & goddess locs\n` +
-              `• Crochet styles\n` +
-              `• Feed-in braids & cornrows\n` +
-              `• Twists (Senegalese, Marley, etc.)`,
-            cat_natural:
-              `*🌀 Natural Styles (No Extensions)*\n\n` +
-              `34 styles including:\n` +
-              `• Wash & go\n` +
-              `• Twist-outs & braid-outs\n` +
-              `• Bantu knots\n` +
-              `• Roller sets\n` +
-              `• Blowout & press\n` +
-              `• Afro shaping & sculpting\n` +
-              `• Finger coils`,
-            cat_takedown:
-              `*✂️ Hair Take Down Services*\n\n` +
-              `15 services including:\n` +
-              `• Braid take-down\n` +
-              `• Weave removal\n` +
-              `• Loc removal\n` +
-              `• Wig removal & conditioning\n` +
-              `• Extension detangling`,
-          }
-          const body = catTexts[cat] ?? 'Here are our services.'
-          await sendInteractiveButtons(from, body, [
-            { id: `cmd_book_${cat}`, title: '📅 Book Now' },
-            { id: 'cmd_mainmenu',    title: '🏠 Main Menu' },
-          ], businessPhoneNumberId)
+          const catData = ECHOES_CATALOG[cat]
+          if (!catData) { return }
+          await sendInteractiveList(from, businessPhoneNumberId, {
+            bodyText: `*${catData.title}*\n\nSelect a service to book at ${displayName}. All visits include a complimentary consultation. 💆‍♀️`,
+            buttonText: 'Choose Service',
+            sections: [{ title: 'Tap a service to book', rows: catData.rows.slice(0, 10).map(s => ({
+              id: `svc_book_${s.id}`,
+              title: s.name.slice(0, 24),
+              description: `₦${s.price.toLocaleString()} · ${s.dur}`,
+            })) }],
+          })
         }
-
         // Fetch products from Supabase and show as interactive list for service selection
         const sendServicePicker = async () => {
           const { data: prods } = await supabaseAdmin
@@ -586,25 +524,38 @@ export async function POST(request: Request) {
           }
         }
 
-        if (selId === 'cmd_book' || selId.startsWith('cmd_book_')) {
+        if (selId === 'cmd_book') {
           await sendServicePicker()
+        } else if (selId.startsWith('cmd_book_')) {
+          // cmd_book_cat_repair → show that category's interactive service list
+          const cat = selId.replace('cmd_book_', '')
+          if (ECHOES_CATALOG[cat]) {
+            await sendCat(cat)
+          } else {
+            await sendServicePicker()
+          }
         } else if (selId.startsWith('svc_book_') && flowId && waOwnerId) {
           const productId = selId.replace('svc_book_', '')
           const { data: prod } = await supabaseAdmin
             .from('products').select('id, name, price, currency').eq('id', productId).maybeSingle()
-          if (prod) {
-            const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
-            const sym = SYM[prod.currency] ?? prod.currency
+          // Fallback: look up in hardcoded catalog for non-Supabase services
+          const catalogSvc = !prod ? CATALOG_FLAT.find(s => s.id === productId) : null
+          const svcName  = prod?.name  ?? catalogSvc?.name
+          const svcPrice = prod ? Number(prod.price) : (catalogSvc?.price ?? 0)
+          const sym      = '₦'
+          if (svcName) {
             const flowResult = await sendFlowMessage(from, businessPhoneNumberId, {
               metaFlowId: flowId, screen: 'BOOKING',
               ctaText: 'Confirm Booking ✨',
-              bodyText: `*${prod.name}* — ${sym}${Number(prod.price).toLocaleString()}\n\nFill in your name, preferred date & time. Takes 30 seconds! 🚀`,
-              initialData: { service_id: prod.id, service_name: prod.name, flow_db_id: waOwnerId },
+              bodyText: `*${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\nFill in your name, preferred date & time. Takes 30 seconds! 🚀`,
+              initialData: { service_id: productId, service_name: svcName, flow_db_id: waOwnerId },
             })
             if (flowResult?.error) {
               console.error('[echoes] flow send error (svc_book):', JSON.stringify(flowResult.error))
               await sendTextMessage(from, `I couldn't open the booking form right now. Please try again! 🙏`, businessPhoneNumberId)
             }
+          } else {
+            await sendTextMessage(from, `Sorry, I couldn't find that service. Type *menu* to see all options.`, businessPhoneNumberId)
           }
         } else if (selId === 'cmd_prices') {
           await sendInteractiveButtons(from,
@@ -807,14 +758,9 @@ export async function POST(request: Request) {
           const serviceId: string = flowData.service_id
 
           // Static service catalogue fallback (used when service_id is a slug, not a DB uuid)
-          const STATIC_SERVICES: Record<string, { name: string; price: number; currency: string }> = {
-            'intense-hydrating': { name: 'Intense Hydrating Treatment', price: 31000, currency: 'NGN' },
-            'moisture-sos':      { name: 'Moisture SOS',                 price: 49500, currency: 'NGN' },
-            'bond-builder':      { name: 'Bond Builder Treatment',        price: 38500, currency: 'NGN' },
-            'quinoa-protein':    { name: 'Quinoa Protein Treatment',      price: 31000, currency: 'NGN' },
-            'botox-volumising':  { name: 'Botox Volumising Treatment',    price: 49500, currency: 'NGN' },
-            'molecular-repair':  { name: 'Molecular Repair Blend',        price: 49500, currency: 'NGN' },
-          }
+          // Built dynamically from ECHOES_CATALOG so it always stays in sync
+          const STATIC_SERVICES: Record<string, { name: string; price: number; currency: string }> =
+            Object.fromEntries(CATALOG_FLAT.map(s => [s.id, { name: s.name, price: s.price, currency: 'NGN' }]))
 
           const { data: svc } = await supabaseAdmin
             .from('products')
