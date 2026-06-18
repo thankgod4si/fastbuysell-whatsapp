@@ -83,7 +83,7 @@ jobs:
                   \"EMAIL_FROM\": \"${{ secrets.EMAIL_FROM }}\",
                   \"BREVO_SMS_SENDER\": \"FastBuySell\",
                   \"CRON_SECRET\": \"${{ secrets.CRON_SECRET }}\",
-                  \"NEXT_PUBLIC_APP_URL\": \"https://nhxy3u5un3.us-east-1.awsapprunner.com\"
+                  \"NEXT_PUBLIC_APP_URL\": \"https://pvydwuwyfi.us-east-1.awsapprunner.com\"
                 }
               }
             },
@@ -99,16 +99,53 @@ jobs:
             --output text)
 
           if [ -n "$SERVICE_ARN" ]; then
-            echo "Deleting existing App Runner service: $SERVICE_ARN"
-            aws apprunner delete-service --service-arn "$SERVICE_ARN" --region $AWS_REGION
-            echo "Waiting for deletion to complete..."
-            aws apprunner wait service-inactive --service-arn "$SERVICE_ARN" --region $AWS_REGION 2>/dev/null || sleep 60
-          fi
+            # Wait until service is in a stable state before updating
+            echo "Waiting for service to reach stable state..."
+            for i in $(seq 1 20); do
+              STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --region $AWS_REGION \
+                --query "Service.Status" --output text)
+              echo "  Status: $STATUS"
+              if [ "$STATUS" = "RUNNING" ] || [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "UPDATE_FAILED" ]; then
+                break
+              fi
+              sleep 30
+            done
 
-          echo "Creating new App Runner service..."
-          aws apprunner create-service \
-            --region $AWS_REGION \
-            --service-name $SERVICE_NAME \
-            --source-configuration "$SOURCE_CONFIG" \
-            --instance-configuration "{\"Cpu\": \"1 vCPU\", \"Memory\": \"2 GB\"}" \
-            --health-check-configuration "{\"Protocol\": \"HTTP\", \"Path\": \"/api/webhook\", \"Interval\": 20, \"Timeout\": 10, \"HealthyThreshold\": 1, \"UnhealthyThreshold\": 5}"
+            echo "Updating existing App Runner service: $SERVICE_ARN"
+            aws apprunner update-service \
+              --region $AWS_REGION \
+              --service-arn "$SERVICE_ARN" \
+              --source-configuration "{
+                \"ImageRepository\": {
+                  \"ImageIdentifier\": \"$ECR_IMAGE\",
+                  \"ImageRepositoryType\": \"ECR\",
+                  \"ImageConfiguration\": {
+                    \"Port\": \"3000\",
+                    \"RuntimeEnvironmentVariables\": {
+                      \"NODE_ENV\": \"production\",
+                      \"NEXT_PUBLIC_SUPABASE_URL\": \"${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}\",
+                      \"NEXT_PUBLIC_SUPABASE_ANON_KEY\": \"${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}\",
+                      \"SUPABASE_SERVICE_ROLE_KEY\": \"${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}\",
+                      \"WHATSAPP_PHONE_NUMBER_ID\": \"${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}\",
+                      \"WHATSAPP_BUSINESS_ACCOUNT_ID\": \"${{ secrets.WHATSAPP_BUSINESS_ACCOUNT_ID }}\",
+                      \"WHATSAPP_ACCESS_TOKEN\": \"${{ secrets.WHATSAPP_ACCESS_TOKEN }}\",
+                      \"WHATSAPP_WEBHOOK_VERIFY_TOKEN\": \"${{ secrets.WHATSAPP_WEBHOOK_VERIFY_TOKEN }}\",
+                      \"WHATSAPP_FLOW_ID\": \"${{ secrets.WHATSAPP_FLOW_ID }}\",
+                      \"RESEND_API_KEY\": \"${{ secrets.RESEND_API_KEY }}\",
+                      \"EMAIL_FROM\": \"${{ secrets.EMAIL_FROM }}\",
+                      \"BREVO_SMS_SENDER\": \"FastBuySell\",
+                      \"CRON_SECRET\": \"${{ secrets.CRON_SECRET }}\",
+                      \"NEXT_PUBLIC_APP_URL\": \"https://pvydwuwyfi.us-east-1.awsapprunner.com\"
+                    }
+                  }
+                }
+              }"
+          else
+            echo "Creating new App Runner service..."
+            aws apprunner create-service \
+              --region $AWS_REGION \
+              --service-name $SERVICE_NAME \
+              --source-configuration "$SOURCE_CONFIG" \
+              --instance-configuration "{\"Cpu\": \"1 vCPU\", \"Memory\": \"2 GB\"}" \
+              --health-check-configuration "{\"Protocol\": \"HTTP\", \"Path\": \"/api/webhook\", \"Interval\": 20, \"Timeout\": 10, \"HealthyThreshold\": 1, \"UnhealthyThreshold\": 5}"
+          fi
