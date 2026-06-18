@@ -36,7 +36,7 @@ interface DashStats {
   aiEnabled: boolean
 }
 
-const SYM: Record<string, string> = { NGN: 'â‚¦', EUR: 'â‚¬', USD: '$', GBP: 'Â£' }
+const SYM: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
 const fmtMoney = (n: number, cur: string) => `${SYM[cur] ?? cur}${n.toLocaleString()}`
 
 // â”€â”€â”€ Channel logos (inline SVG) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -98,7 +98,7 @@ function ApptRow({ b, today }: { b: BookingRow; today: string }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-[#1C1C1E] truncate">{b.customer_name}</p>
-        <p className="text-xs text-[#8E8E93]">{svc?.service_name ?? 'â€”'} Â· {b.time_slot?.slice(0,5)}</p>
+        <p className="text-xs text-[#8E8E93]">{svc?.service_name ?? '—'} · {b.time_slot?.slice(0,5)}</p>
       </div>
       <div className="text-right shrink-0 space-y-0.5">
         {svc && <p className="text-sm font-bold text-[#059669]">{fmtMoney(Number(svc.price), cur)}</p>}
@@ -146,11 +146,11 @@ function SetupBanner() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-[#1C1C1E] text-sm">Enable AI Booking</p>
-        <p className="text-xs text-[#6B7280] mt-0.5">Let customers book appointments 24/7 via WhatsApp, Instagram, and Facebook â€” fully automated.</p>
+        <p className="text-xs text-[#6B7280] mt-0.5">Let customers book appointments 24/7 via WhatsApp, Instagram, and Facebook — fully automated.</p>
       </div>
       <Link href="/settings" className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold text-white"
         style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)' }}>
-        Set up â†’
+        Set up →
       </Link>
     </div>
   )
@@ -259,8 +259,8 @@ export default function DashboardPage() {
           boxShadow: stats.aiEnabled ? '0 8px 32px rgba(139,92,246,0.3)' : '0 8px 32px rgba(0,122,255,0.25)' }}>
         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/5" />
         <div className="relative z-10">
-          <p className="text-white/70 text-sm">{greeting}, {userName} ðŸ‘‹</p>
-          {bizName && <p className="text-white/50 text-xs mt-0.5">{bizName} Â· {todayLabel}</p>}
+          <p className="text-white/70 text-sm">{greeting}, {userName} 👋</p>
+          {bizName && <p className="text-white/50 text-xs mt-0.5">{bizName} · {todayLabel}</p>}
 
           <div className="flex items-center gap-6 mt-4">
             {(stats.aiEnabled ? [
@@ -324,7 +324,7 @@ export default function DashboardPage() {
           <div className="lg:col-span-2 bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div className="px-6 py-4 border-b border-black/[0.05] flex items-center justify-between">
               <h2 className="font-bold text-[#1C1C1E] text-sm">Upcoming Appointments</h2>
-              <Link href="/bookings" className="text-xs font-semibold text-[#8B5CF6]">View all â†’</Link>
+              <Link href="/bookings" className="text-xs font-semibold text-[#8B5CF6]">View all →</Link>
             </div>
             <div className="px-6">
               {stats.aiEnabled ? (
@@ -337,7 +337,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="py-10 text-center">
                   <p className="text-[#8E8E93] text-sm">AI booking not enabled</p>
-                  <Link href="/settings" className="text-xs text-[#8B5CF6] font-semibold mt-1 block">Enable AI booking â†’</Link>
+                  <Link href="/settings" className="text-xs text-[#8B5CF6] font-semibold mt-1 block">Enable AI booking →</Link>
                 </div>
               )}
             </div>
@@ -347,7 +347,7 @@ export default function DashboardPage() {
           <div className="bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div className="px-5 py-4 border-b border-black/[0.05] flex items-center justify-between">
               <h2 className="font-bold text-[#1C1C1E] text-sm">Recent Messages</h2>
-              <Link href="/inbox" className="text-xs font-semibold text-[#007AFF]">Open inbox â†’</Link>
+              <Link href="/inbox" className="text-xs font-semibold text-[#007AFF]">Open inbox →</Link>
             </div>
             <div className="px-5">
               {inbox.length === 0 ? (
