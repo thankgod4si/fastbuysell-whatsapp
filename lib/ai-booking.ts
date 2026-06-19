@@ -21,6 +21,7 @@
 
 import OpenAI from 'openai'
 import { supabaseAdmin } from './supabase-admin'
+import { loadCustomerContext, formatCustomerContextForAI } from './customer-profile'
 
 // Lazy-initialize so build doesn't fail without OPENAI_API_KEY in env
 let _openai: OpenAI | null = null
@@ -117,7 +118,21 @@ export async function loadBusinessContext(businessId: string, phoneNumberId: str
 // ─── Build the per-business system prompt ──────────────────────────────────
 // This is the "training" — no ML, just structured context injection.
 
-function buildSystemPrompt(ctx: BusinessContext, session: SessionState): string {
+const HAIR_CONSULTANT_PERSONA = `You are a personal AI Hair Consultant and Customer Retention Assistant for a premium salon.
+
+Your goals: help with hair questions, improve experience, encourage repeat appointments and product sales — always helpful first, never pushy.
+
+CONVERSATION FLOW:
+1. Understand the problem or request
+2. Ask 1–2 follow-up questions if needed
+3. Give useful, honest advice (never invent medical diagnoses — recommend a professional for serious symptoms)
+4. Recommend a service or product only when relevant, and explain WHY using their history
+5. Offer to book when appropriate — never pressure
+
+Use their hair timeline and profile when available. Reference past styles naturally ("your knotless braids from 6 weeks ago").
+Keep replies short, warm, WhatsApp-friendly. Max 3 sentences unless explaining a treatment.`
+
+function buildSystemPrompt(ctx: BusinessContext, session: SessionState, customerBlock?: string): string {
   const currency = ctx.services[0]?.currency ?? 'NGN'
   const currencySymbol: Record<string, string> = { NGN: '₦', EUR: '€', USD: '$', GBP: '£' }
   const sym = currencySymbol[currency] ?? currency
@@ -130,9 +145,11 @@ function buildSystemPrompt(ctx: BusinessContext, session: SessionState): string 
     .map(([day, hrs]) => `${day}: ${hrs}`)
     .join(', ')
 
-  // The custom prompt overrides the default persona but the menu/business info is always injected
+  const isSalon = /salon|hair|trichology|beauty|spa/i.test(ctx.business_type ?? '')
   const persona = ctx.custom_system_prompt ??
-    `You are the friendly, professional AI booking assistant for ${ctx.display_name}, a premium ${ctx.business_type} located at ${ctx.address}.`
+    (isSalon
+      ? HAIR_CONSULTANT_PERSONA.replace('a premium salon', `${ctx.display_name}, a premium ${ctx.business_type}`)
+      : `You are the friendly, professional AI booking assistant for ${ctx.display_name}, a premium ${ctx.business_type} located at ${ctx.address}.`)
 
   const currentData = JSON.stringify(session.collected_data)
 
@@ -146,22 +163,21 @@ BUSINESS INFORMATION:
 
 SERVICES MENU:
 ${menuLines || '  No services configured yet.'}
-
+${customerBlock ? `\n${customerBlock}\n` : ''}
 BOOKING CONVERSATION RULES:
-1. You ONLY help customers book appointments at ${ctx.display_name}. Never discuss other businesses.
-2. Keep messages SHORT and WhatsApp-friendly (no markdown, use emojis sparingly).
-3. Collect in this order: (1) which service, (2) customer full name, (3) preferred date & time.
-4. Once you have all 3 details, confirm them back and say you're generating a payment link.
-5. If a customer asks about pricing, show the menu clearly with prices in ${currency}.
-6. Be warm, professional, and concise. Max 3 sentences per reply.
-7. If asked something outside your scope (e.g., politics, other businesses), politely redirect.
+1. You ONLY help customers of ${ctx.display_name}. Never discuss other businesses.
+2. Keep messages SHORT and WhatsApp-friendly (no markdown in replies, emojis sparingly).
+3. For bookings: collect service → name → date & time, then confirm.
+4. If a customer asks about pricing, show relevant menu items with prices in ${currency}.
+5. Be warm and personal. Use customer history when provided.
 
 CURRENT BOOKING DATA COLLECTED SO FAR:
 ${currentData}
 
 CURRENT CONVERSATION STATE: ${session.state}
 
-IMPORTANT: Always end your JSON response with a "reply_to_customer" field containing ONLY the WhatsApp message text — no JSON, no markdown in that field.`
+Respond in JSON with fields: action, reply_to_customer, and optionally customer_name, service_name, preferred_date, preferred_time.
+IMPORTANT: reply_to_customer must be ONLY the WhatsApp message text — no JSON, no markdown.`
 }
 
 // ─── Get or create a booking session ───────────────────────────────────────
@@ -225,9 +241,18 @@ function matchService(serviceName: string | undefined, services: BusinessContext
 export async function processBookingMessage(
   customerMessage: string,
   ctx: BusinessContext,
-  session: SessionState
+  session: SessionState,
+  customerPhone?: string,
 ): Promise<{ intent: BookingIntent; updatedSession: SessionState }> {
-  const systemPrompt = buildSystemPrompt(ctx, session)
+  let customerBlock: string | undefined
+  if (customerPhone) {
+    try {
+      const custCtx = await loadCustomerContext(ctx.business_id, customerPhone)
+      if (custCtx) customerBlock = formatCustomerContextForAI(custCtx)
+    } catch { /* customer_profiles table may not exist yet */ }
+  }
+
+  const systemPrompt = buildSystemPrompt(ctx, session, customerBlock)
 
   // Build the context window (last 8 exchanges + current message)
   const conversationHistory = session.context_messages.slice(-8)

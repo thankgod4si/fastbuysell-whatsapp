@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabaseAdmin } from './supabase-admin'
 
 export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed' | 'bounced' | 'opened'
 
@@ -13,7 +13,7 @@ export async function createMessageLog(params: {
   direction?: 'outbound' | 'inbound'
   msgType?: string
 }) {
-  await supabase.from('message_logs').insert({
+  await supabaseAdmin.from('message_logs').insert({
     contact_id: params.contactId ?? null,
     lead_id:    params.leadId    ?? null,
     channel:    params.channel,
@@ -35,7 +35,7 @@ export async function saveInboundMessage(params: {
   msgType: 'text' | 'button_reply' | 'form_submission'
   userId?: string | null
 }) {
-  const { error } = await supabase.from('message_logs').insert({
+  const { error } = await supabaseAdmin.from('message_logs').insert({
     contact_id:  params.contactId ?? null,
     channel:     'whatsapp',
     recipient:   params.phone,
@@ -71,5 +71,28 @@ export async function updateMessageStatus(
   }
   if (status === 'opened') update.read_at = ts
 
-  await supabase.from('message_logs').update(update).eq('external_id', externalId)
+  await supabaseAdmin.from('message_logs').update(update).eq('external_id', externalId)
+}
+
+export async function saveOutboundMessage(params: {
+  contactId?: string | null
+  phone: string
+  content: string
+  msgType?: string
+  userId?: string | null
+}) {
+  const { error } = await supabaseAdmin.from('message_logs').insert({
+    contact_id:  params.contactId ?? null,
+    channel:     'whatsapp',
+    recipient:   params.phone,
+    direction:   'outbound',
+    content:     params.content,
+    msg_type:    params.msgType ?? 'bot_reply',
+    status:      'sent',
+    sent_at:     new Date().toISOString(),
+    user_id:     params.userId ?? null,
+  })
+  if (error) {
+    console.error('[saveOutboundMessage] DB error:', error.message, error.details)
+  }
 }

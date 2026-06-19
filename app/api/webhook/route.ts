@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendFlowMessage, sendInteractiveButtons, sendInteractiveList, sendTextMessage, sendImageButtonMessage } from '@/lib/whatsapp'
-import { updateMessageStatus, saveInboundMessage } from '@/lib/message-log'
+import { updateMessageStatus, saveInboundMessage, saveOutboundMessage } from '@/lib/message-log'
 import { loadBusinessContext, getOrCreateSession, processBookingMessage } from '@/lib/ai-booking'
 import { generateReference, generatePaymentLink, formatPaymentMessage } from '@/lib/sofi'
+import { upsertCustomerProfile, addHairTimelineEntry } from '@/lib/customer-profile'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN!
 
@@ -154,54 +155,124 @@ async function resolveServiceDetails(serviceId: string) {
   return null
 }
 
+async function resolveWaOwnerId(phoneNumberId: string): Promise<string | null> {
+  const { data: prof } = await supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('wa_phone_number_id', phoneNumberId)
+    .maybeSingle()
+  if (prof?.id) return prof.id
+
+  const { data: wn } = await supabaseAdmin
+    .from('wa_numbers')
+    .select('user_id')
+    .eq('phone_number_id', phoneNumberId)
+    .maybeSingle()
+  return wn?.user_id ?? null
+}
+
+/** Phone-number owner wins over Meta flow payload (flow may embed stale flow_db_id). */
+function resolveBookingBusinessId(waOwnerId: string | null, flowDbId?: string | null): string {
+  if (waOwnerId) return waOwnerId
+  return flowDbId ?? ''
+}
+
+async function ensureEchoesContact(phone: string, userId: string, waName: string | null) {
+  await supabaseAdmin.from('contacts').upsert(
+    { phone, user_id: userId, status: 'replied', ...(waName ? { wa_name: waName } : {}) },
+    { onConflict: 'phone,user_id' },
+  )
+}
+
 async function loadBusinessProfile(
   businessId: string,
   fallbacks?: { waOwnerId?: string | null; phoneNumberId?: string },
 ) {
   const fields = 'bank_name, account_number, account_name, business_display_name'
-  const { data: byId } = await supabaseAdmin
-    .from('profiles').select(fields).eq('id', businessId).maybeSingle()
-  if (byId?.bank_name?.trim() && byId?.account_number?.trim()) return byId
 
-  if (fallbacks?.waOwnerId && fallbacks.waOwnerId !== businessId) {
+  if (fallbacks?.phoneNumberId) {
+    const { data } = await supabaseAdmin
+      .from('profiles').select(fields).eq('wa_phone_number_id', fallbacks.phoneNumberId).maybeSingle()
+    if (data?.bank_name?.trim() && data?.account_number?.trim()) return data
+  }
+  if (fallbacks?.waOwnerId) {
     const { data } = await supabaseAdmin
       .from('profiles').select(fields).eq('id', fallbacks.waOwnerId).maybeSingle()
     if (data?.bank_name?.trim() && data?.account_number?.trim()) return data
   }
+
+  const { data: byId } = await supabaseAdmin
+    .from('profiles').select(fields).eq('id', businessId).maybeSingle()
+  if (byId?.bank_name?.trim() && byId?.account_number?.trim()) return byId
+
   if (fallbacks?.phoneNumberId) {
     const { data } = await supabaseAdmin
       .from('profiles').select(fields).eq('wa_phone_number_id', fallbacks.phoneNumberId).maybeSingle()
+    if (data) return data
+  }
+  if (fallbacks?.waOwnerId && fallbacks.waOwnerId !== businessId) {
+    const { data } = await supabaseAdmin
+      .from('profiles').select(fields).eq('id', fallbacks.waOwnerId).maybeSingle()
     if (data) return data
   }
   return byId
 }
 
 async function sendBookingConfirmedMessage(opts: {
-  booking: { customer_name: string; service_id: string; appointment_date: string; time_slot: string; business_id: string }
+  booking: { id: string; customer_name: string; service_id: string; appointment_date: string; time_slot: string; business_id: string; customer_phone?: string }
   from: string
   businessPhoneNumberId: string
   paidInPerson?: boolean
+  serviceName?: string
+  profileFallbacks?: { waOwnerId?: string | null; phoneNumberId?: string }
 }) {
-  const { booking, from, businessPhoneNumberId, paidInPerson } = opts
+  const { booking, from, businessPhoneNumberId, paidInPerson, serviceName: svcNameOverride, profileFallbacks } = opts
   const svcDetails = await resolveServiceDetails(booking.service_id)
-  const svcName = svcDetails?.name ?? 'your service'
+  const svcName = svcNameOverride ?? svcDetails?.name ?? 'your service'
   const sym = SYM_MAP[svcDetails?.currency ?? 'NGN'] ?? '₦'
   const price = svcDetails?.price ?? 0
-  const bProfile = await loadBusinessProfile(booking.business_id)
+  const bProfile = await loadBusinessProfile(booking.business_id, profileFallbacks)
   const bizName = bProfile?.business_display_name ?? 'Tresses Lagos'
 
   const payLine = paidInPerson
     ? `💰 *${sym}${price.toLocaleString()}* — pay in person when you arrive`
     : `✅ Payment received`
 
-  await sendTextMessage(from,
+  const body =
     `🎉 *Booking Confirmed!*\n\n` +
     `Thank you, ${booking.customer_name}! Your appointment at *${bizName}* is all set.\n\n` +
     `📋 *${svcName}*\n` +
     `📅 ${booking.appointment_date} at ${booking.time_slot}\n` +
     `${payLine}\n\n` +
-    `We look forward to seeing you! See you soon 🙌`,
-    businessPhoneNumberId)
+    `We look forward to seeing you! See you soon 🙌`
+
+  await sendTextMessage(from, body, businessPhoneNumberId)
+  await saveOutboundMessage({
+    phone: from,
+    content: body,
+    msgType: 'booking_confirmed',
+    userId: booking.business_id,
+  })
+
+  try {
+    const customerId = await upsertCustomerProfile({
+      businessId: booking.business_id,
+      phone: booking.customer_phone ?? from,
+      fullName: booking.customer_name,
+    })
+    if (customerId) {
+      await addHairTimelineEntry({
+        businessId: booking.business_id,
+        customerId,
+        bookingId: booking.id,
+        serviceName: svcName,
+        serviceId: booking.service_id,
+        eventDate: booking.appointment_date,
+      })
+    }
+  } catch (err) {
+    console.error('[webhook] customer profile/timeline update failed:', err)
+  }
 }
 
 /** Handle pay_* / pay_confirm button taps. Returns true when the event was consumed. */
@@ -222,7 +293,7 @@ async function processPaymentButtons(opts: {
     const bookingId = btnId.replace('pay_confirm___', '')
     const { data: booking } = await supabaseAdmin
       .from('bookings')
-      .select('id, customer_name, service_id, appointment_date, time_slot, business_id, payment_status')
+      .select('id, customer_name, customer_phone, service_id, appointment_date, time_slot, business_id, payment_status')
       .eq('id', bookingId)
       .maybeSingle()
 
@@ -233,7 +304,11 @@ async function processPaymentButtons(opts: {
         payment_gateway_provider: 'transfer',
       }).eq('booking_id', bookingId)
 
-      await sendBookingConfirmedMessage({ booking, from, businessPhoneNumberId })
+      await sendBookingConfirmedMessage({
+        booking: { ...booking, customer_phone: booking.customer_phone ?? from },
+        from, businessPhoneNumberId,
+        profileFallbacks,
+      })
       await saveInboundMessage({
         phone: from,
         content: `Payment confirmed for: ${booking.service_id} on ${booking.appointment_date}`,
@@ -289,7 +364,9 @@ async function processPaymentButtons(opts: {
     }).eq('booking_id', pendingBooking.id)
 
     await sendBookingConfirmedMessage({
-      booking: pendingBooking, from, businessPhoneNumberId, paidInPerson: true,
+      booking: { ...pendingBooking, customer_phone: from },
+      from, businessPhoneNumberId, paidInPerson: true,
+      profileFallbacks,
     })
     await saveInboundMessage({
       phone: from,
@@ -340,27 +417,31 @@ async function processPaymentButtons(opts: {
 
   if (btnId.startsWith('pay_transfer___')) {
     if (!bankName || !accNum) {
-      await sendTextMessage(from,
+      const fallbackBody =
         `🏦 *Bank Transfer*\n\n` +
         `Amount: *${sym}${svcPrice.toLocaleString()}* for *${svcName}*\n\n` +
-        `We're setting up bank details — please choose *Pay in Person* or contact ${bizName} directly. 🙏`,
-        businessPhoneNumberId)
+        `We're setting up bank details — please choose *Pay in Person* or contact ${bizName} directly. 🙏`
+      await sendTextMessage(from, fallbackBody, businessPhoneNumberId)
+      await saveOutboundMessage({ phone: from, content: fallbackBody, msgType: 'payment_prompt', userId: pendingBooking.business_id })
       return true
     }
     await supabaseAdmin.from('booking_transactions').update({
       payment_gateway_provider: 'transfer',
     }).eq('booking_id', pendingBooking.id)
 
-    await sendInteractiveButtons(from,
+    const transferBody =
       `🏦 *Bank Transfer Details*\n\n` +
       `📋 *${svcName}* — ${sym}${svcPrice.toLocaleString()}\n\n` +
       `Please transfer the exact amount to:\n\n` +
       `🏦 *Bank:* ${bankName}\n` +
       `📟 *Account Number:* ${accNum}\n` +
       `👤 *Account Name:* ${accName}\n\n` +
-      `Once you've made the transfer, tap the button below to confirm your booking! ✅`,
+      `Once you've made the transfer, tap the button below to confirm your booking! ✅`
+
+    await sendInteractiveButtons(from, transferBody,
       [{ id: `pay_confirm___${pendingBooking.id}`, title: "✅ I've Paid" }],
       businessPhoneNumberId)
+    await saveOutboundMessage({ phone: from, content: transferBody, msgType: 'bank_details', userId: pendingBooking.business_id })
     return true
   }
 
@@ -416,16 +497,10 @@ export async function POST(request: Request) {
 
     console.log(`[webhook] msg type=${message.type} from=${from} bizId=${businessPhoneNumberId}`)
 
-    // Resolve WA number owner — used only for SENDING auto-replies (token/number selection)
-    // NOT used to decide which user's inbox to save to
+    // Resolve WA number owner — profiles.wa_phone_number_id is source of truth
     let waOwnerId: string | null = null
     if (businessPhoneNumberId) {
-      const { data: prof } = await supabase.from('profiles').select('id').eq('wa_phone_number_id', businessPhoneNumberId).maybeSingle()
-      waOwnerId = prof?.id ?? null
-      if (!waOwnerId) {
-        const { data: wn } = await supabase.from('wa_numbers').select('user_id').eq('phone_number_id', businessPhoneNumberId).maybeSingle()
-        waOwnerId = wn?.user_id ?? null
-      }
+      waOwnerId = await resolveWaOwnerId(businessPhoneNumberId)
       console.log(`[webhook] waOwnerId=${waOwnerId} for bizId=${businessPhoneNumberId}`)
     }
 
@@ -461,6 +536,7 @@ export async function POST(request: Request) {
           ])
 
           if (ctx) {
+            await ensureEchoesContact(from, waOwnerId, waName)
             // Save inbound message to logs
             await saveInboundMessage({ phone: from, content: text, msgType: 'text', userId: waOwnerId })
 
@@ -693,9 +769,15 @@ export async function POST(request: Request) {
               await supabaseAdmin.from('booking_sessions').update({ state: 'menu_shown' }).eq('id', session.id)
             } else if (process.env.OPENAI_API_KEY) {
               // Ongoing conversation — let AI continue naturally
-              const { intent, updatedSession } = await processBookingMessage(text, ctx, session)
+              const { intent, updatedSession } = await processBookingMessage(text, ctx, session, from)
               console.log(`[echoes] intent.action=${intent.action} state=${updatedSession.state}`)
               await sendTextMessage(from, intent.reply_to_customer, businessPhoneNumberId)
+              await saveOutboundMessage({
+                phone: from,
+                content: intent.reply_to_customer,
+                msgType: 'ai_reply',
+                userId: waOwnerId,
+              })
 
               // Legacy: if AI collected all details via text chat, trigger payment
               if (updatedSession.state === 'payment_sent') {
@@ -1084,7 +1166,10 @@ export async function POST(request: Request) {
       // Booking flows embed the business user.id as flow_db_id in the payload.
       // service_id, customer_name, preferred_date, preferred_time are in booking flow submissions
       const isBookingFlow = Boolean(flowData.service_id && flowData.customer_name)
-      const bookingBusinessId: string = flowData.flow_db_id ?? waOwnerId ?? ''
+      const bookingBusinessId: string = resolveBookingBusinessId(waOwnerId, flowData.flow_db_id)
+      if (flowData.flow_db_id && waOwnerId && flowData.flow_db_id !== waOwnerId) {
+        console.warn(`[webhook] flow_db_id mismatch: flow=${flowData.flow_db_id} phoneOwner=${waOwnerId}`)
+      }
       if (isBookingFlow && bookingBusinessId && businessPhoneNumberId) {
         try {
           // Load the business's profile for bank details + display name
@@ -1163,10 +1248,22 @@ export async function POST(request: Request) {
             console.error('[echoes] booking_transaction insert failed:', txErr.message)
           }
 
+          try {
+            await upsertCustomerProfile({
+              businessId: bookingBusinessId,
+              phone: from,
+              fullName: customerName,
+              waName,
+            })
+          } catch (err) {
+            console.error('[echoes] customer profile upsert failed:', err)
+          }
+
           await saveInboundMessage({
             phone: from, content: `Booking: ${serviceName} on ${preferredDate} at ${preferredTime}`,
             msgType: 'form_submission', userId: bookingBusinessId,
           })
+          await ensureEchoesContact(from, bookingBusinessId, waName)
 
           const displayName = bProfile?.business_display_name ?? 'us'
 
@@ -1181,6 +1278,12 @@ export async function POST(request: Request) {
             { id: `pay_transfer___${booking.id}`, title: 'Bank Transfer' },
             { id: `pay_inperson___${booking.id}`, title: 'Pay in Person' },
           ], businessPhoneNumberId)
+          await saveOutboundMessage({
+            phone: from,
+            content: payButtonBody,
+            msgType: 'payment_prompt',
+            userId: bookingBusinessId,
+          })
 
           return NextResponse.json({ status: 'ok' })
         } catch (err) {
