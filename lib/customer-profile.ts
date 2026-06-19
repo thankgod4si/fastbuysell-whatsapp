@@ -77,52 +77,82 @@ export async function addHairTimelineEntry(opts: {
     .eq('id', opts.customerId)
 }
 
-/** Load profile + recent timeline for AI context injection */
+/** Load profile + bookings + timeline for AI context injection */
 export async function loadCustomerContext(businessId: string, phone: string) {
-  const { data: profile } = await supabaseAdmin
-    .from('customer_profiles')
-    .select('id, full_name, wa_name, hair_type, preferred_stylist, loyalty_tier, last_visit_date, birthday')
-    .eq('business_id', businessId)
-    .eq('phone', phone)
-    .maybeSingle()
+  const today = new Date().toISOString().slice(0, 10)
 
-  if (!profile) return null
-
-  const [{ data: timeline }, { data: wallet }] = await Promise.all([
+  const [{ data: profile }, { data: bookings }] = await Promise.all([
     supabaseAdmin
-      .from('hair_timeline')
-      .select('event_date, service_name, event_type, notes')
-      .eq('customer_id', profile.id)
-      .order('event_date', { ascending: false })
-      .limit(8),
-    supabaseAdmin
-      .from('customer_wallets')
-      .select('balance, currency')
-      .eq('customer_id', profile.id)
+      .from('customer_profiles')
+      .select('id, full_name, wa_name, hair_type, preferred_stylist, loyalty_tier, last_visit_date, birthday')
+      .eq('business_id', businessId)
+      .eq('phone', phone)
       .maybeSingle(),
+    supabaseAdmin
+      .from('bookings')
+      .select('id, service_id, appointment_date, time_slot, payment_status, customer_name')
+      .eq('business_id', businessId)
+      .eq('customer_phone', phone)
+      .order('appointment_date', { ascending: false })
+      .limit(5),
   ])
 
+  const bookingRows = bookings ?? []
+  const activeBooking = bookingRows.find(b =>
+    b.appointment_date >= today && b.payment_status !== 'failed' && b.payment_status !== 'refunded',
+  ) ?? null
+
+  if (!profile && !bookingRows.length) return null
+
+  const [{ data: timeline }, { data: wallet }] = profile
+    ? await Promise.all([
+        supabaseAdmin
+          .from('hair_timeline')
+          .select('event_date, service_name, event_type, notes')
+          .eq('customer_id', profile.id)
+          .order('event_date', { ascending: false })
+          .limit(8),
+        supabaseAdmin
+          .from('customer_wallets')
+          .select('balance, currency')
+          .eq('customer_id', profile.id)
+          .maybeSingle(),
+      ])
+    : [{ data: [] }, { data: null }]
+
   return {
-    profile: profile as CustomerProfile,
+    profile: profile as CustomerProfile | null,
     timeline: (timeline ?? []) as HairTimelineEntry[],
     walletBalance: wallet ? Number(wallet.balance) : 0,
     walletCurrency: wallet?.currency ?? 'NGN',
+    activeBooking,
+    recentBookings: bookingRows,
   }
 }
 
 export function formatCustomerContextForAI(ctx: NonNullable<Awaited<ReturnType<typeof loadCustomerContext>>>): string {
   const p = ctx.profile
-  const name = p.full_name ?? p.wa_name ?? 'Customer'
+  const name = p?.full_name ?? p?.wa_name ?? ctx.activeBooking?.customer_name ?? 'Customer'
   const lines: string[] = [
     `CUSTOMER PROFILE (use to personalise — never invent missing data):`,
     `- Name: ${name}`,
   ]
-  if (p.hair_type) lines.push(`- Hair type: ${p.hair_type}`)
-  if (p.preferred_stylist) lines.push(`- Preferred stylist: ${p.preferred_stylist}`)
-  if (p.last_visit_date) lines.push(`- Last visit: ${p.last_visit_date}`)
-  if (p.loyalty_tier) lines.push(`- Loyalty: ${p.loyalty_tier}`)
-  if (p.birthday) lines.push(`- Birthday: ${p.birthday}`)
+  if (p?.hair_type) lines.push(`- Hair type: ${p.hair_type}`)
+  if (p?.preferred_stylist) lines.push(`- Preferred stylist: ${p.preferred_stylist}`)
+  if (p?.last_visit_date) lines.push(`- Last visit: ${p.last_visit_date}`)
+  if (p?.loyalty_tier) lines.push(`- Loyalty: ${p.loyalty_tier}`)
+  if (p?.birthday) lines.push(`- Birthday: ${p.birthday}`)
   if (ctx.walletBalance > 0) lines.push(`- Wallet balance: ₦${ctx.walletBalance.toLocaleString()}`)
+
+  if (ctx.activeBooking) {
+    const b = ctx.activeBooking
+    lines.push(
+      '',
+      `ACTIVE BOOKING:`,
+      `- ${b.service_id} on ${b.appointment_date} at ${b.time_slot} (${b.payment_status})`,
+      `- Do NOT re-book the same slot; help them complete payment or answer questions about this appointment.`,
+    )
+  }
 
   if (ctx.timeline.length) {
     lines.push('', 'HAIR TIMELINE (most recent first):')

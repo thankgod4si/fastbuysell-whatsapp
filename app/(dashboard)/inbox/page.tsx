@@ -193,7 +193,7 @@ export default function InboxPage() {
             const displayName = contact?.wa_name ?? contact?.name ?? item.recipient
             const isAiHandled = item.msg_type === 'auto_reply' || item.msg_type === 'dm_auto'
             const isInbound   = item.direction === 'inbound'
-            const href = item.contact_id ? `/contacts?selected=${item.contact_id}` : '/inbox'
+            const href = item.contact_id ? `/leads?selected=${item.contact_id}` : '/inbox'
 
             return (
               <Link key={item.id} href={href}

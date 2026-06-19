@@ -75,7 +75,7 @@ export interface SessionState {
 // ─── Load full business context from DB ────────────────────────────────────
 
 export async function loadBusinessContext(businessId: string, phoneNumberId: string): Promise<BusinessContext | null> {
-  const [{ data: profile }, { data: services }] = await Promise.all([
+  const [{ data: profile }, { data: services }, { data: products }] = await Promise.all([
     supabaseAdmin
       .from('profiles')
       .select('id, business_display_name, business_type, business_address, business_hours, ai_system_prompt, booking_flow_id, bank_name, account_number, account_name')
@@ -88,24 +88,40 @@ export async function loadBusinessContext(businessId: string, phoneNumberId: str
       .eq('business_id', businessId)
       .eq('is_active', true)
       .order('sort_order'),
+    supabaseAdmin
+      .from('products')
+      .select('id, name, price, currency, duration_mins, is_popular')
+      .eq('business_id', businessId)
+      .eq('is_available', true)
+      .order('sort_order'),
   ])
 
   if (!profile) return null
 
+  const menuServices = (services ?? []).length
+    ? (services ?? []).map(s => ({
+        id: s.id,
+        name: s.service_name,
+        price: Number(s.price),
+        currency: s.currency ?? 'NGN',
+        duration_mins: s.duration_mins ?? 60,
+        is_popular: s.is_popular ?? false,
+      }))
+    : (products ?? []).map(p => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        currency: p.currency ?? 'NGN',
+        duration_mins: p.duration_mins ?? 60,
+        is_popular: p.is_popular ?? false,
+      }))
   return {
     business_id: businessId,
     display_name: profile.business_display_name ?? 'Our Business',
     business_type: profile.business_type ?? 'salon',
     address: profile.business_address ?? '',
     hours: (profile.business_hours as Record<string, string>) ?? {},
-    services: (services ?? []).map(s => ({
-      id: s.id,
-      name: s.service_name,
-      price: Number(s.price),
-      currency: s.currency ?? 'NGN',
-      duration_mins: s.duration_mins,
-      is_popular: s.is_popular ?? false,
-    })),
+    services: menuServices,
     custom_system_prompt: profile.ai_system_prompt,
     phone_number_id: phoneNumberId,
     booking_flow_id: profile.booking_flow_id ?? null,
@@ -121,6 +137,14 @@ export async function loadBusinessContext(businessId: string, phoneNumberId: str
 const HAIR_CONSULTANT_PERSONA = `You are a personal AI Hair Consultant and Customer Retention Assistant for a premium salon.
 
 Your goals: help with hair questions, improve experience, encourage repeat appointments and product sales — always helpful first, never pushy.
+
+REVENUE MINDSET (every reply should move toward a booking or upsell when natural):
+- Answer the question first, then suggest ONE relevant service or add-on with a clear reason
+- If they have an active booking, help them pay/confirm or prepare — don't push a second booking
+- If last visit was 4+ weeks ago for braids/extensions, mention takedown or refresh
+- If they ask price, show the service + invite them to book ("Want me to find you a slot?")
+- If unsure what they need, ask one clarifying question then recommend your best-fit treatment
+- Never be salesy — be the expert friend who happens to know exactly what they need
 
 CONVERSATION FLOW:
 1. Understand the problem or request
