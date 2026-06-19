@@ -54,6 +54,7 @@ export async function PATCH(request: Request) {
     'resend_api_key', 'email_from',
     'brevo_api_key', 'brevo_sms_sender',
     'wa_phone_number', 'wa_phone_number_id', 'wa_display_name', 'wa_verified',
+    'bank_name', 'account_number', 'account_name', 'business_display_name',
   ]
   const patch: Record<string, unknown> = { id: user.id }
   for (const key of allowed) {
