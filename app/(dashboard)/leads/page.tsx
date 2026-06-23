@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
+export const dynamic = 'force-dynamic'
+
 interface Booking {
   id: string
   customer_name: string
