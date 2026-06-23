@@ -244,7 +244,7 @@ export default function DashboardPage() {
         ] = await Promise.all([
           supabaseBrowser.from('bookings').select('id, services_menu(price, currency)').eq('payment_status','paid').eq('appointment_date', today),
           supabaseBrowser.from('booking_transactions').select('amount, currency').eq('status','success').gte('created_at', firstOfMonth),
-          supabaseBrowser.from('bookings').select('customer_phone').eq('payment_status','paid'),
+          supabaseBrowser.from('bookings').select('customer_phone, created_at').eq('payment_status','paid'),
           supabaseBrowser.from('booking_sessions').select('id').gte('updated_at', todayStart),
           supabaseBrowser.from('bookings').select('*, services_menu(service_name, price, currency)').eq('payment_status','paid').gte('appointment_date', today).order('appointment_date').order('time_slot').limit(5),
         ])
