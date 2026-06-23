@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { MessageSquare, Clock, Send, Plus, Edit, Trash2 } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 interface CampaignTemplate {
   id: string
   name: string

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
@@ -307,7 +307,7 @@ function ContactItem({ contact, booking, active, onClick }: {
   )
 }
 
-export default function LeadsPage() {
+function LeadsPageContent() {
   const searchParams = useSearchParams()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -445,5 +445,13 @@ export default function LeadsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+      <LeadsPageContent />
+    </Suspense>
   )
 }

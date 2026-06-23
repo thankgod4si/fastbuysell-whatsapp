@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import type { Contact, Lead } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 interface Message {
   id: string; direction: 'outbound' | 'inbound'; content: string | null
   msg_type: string; status: string; sent_at: string

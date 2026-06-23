@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 
+export const dynamic = 'force-dynamic'
+
 interface Profile {
   full_name: string
   reply_to_email: string

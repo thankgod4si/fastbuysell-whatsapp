@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 import { Users, Search, Filter, MoreVertical, Phone, Mail, Calendar, DollarSign, TrendingUp, AlertCircle } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 interface Customer {
   id: string
   name: string

@@ -224,9 +224,9 @@ export default function DashboardPage() {
         .select('channel')
         .eq('direction', 'outbound')
       setOutreach({
-        whatsapp: (allOut ?? []).filter(l => l.channel === 'whatsapp').length,
-        email:    (allOut ?? []).filter(l => l.channel === 'email').length,
-        sms:      (allOut ?? []).filter(l => l.channel === 'sms').length,
+        whatsapp: (allOut ?? []).filter((l: any) => l.channel === 'whatsapp').length,
+        email:    (allOut ?? []).filter((l: any) => l.channel === 'email').length,
+        sms:      (allOut ?? []).filter((l: any) => l.channel === 'sms').length,
       })
 
       // â”€â”€ AI Booking stats (only if enabled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -250,12 +250,12 @@ export default function DashboardPage() {
         ])
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const todayRev = (todayBkgs ?? []).reduce((s, b) => s + Number((b as any).services_menu?.price ?? 0), 0)
-        const monthRev = (monthTxns ?? []).reduce((s, t) => s + Number(t.amount ?? 0), 0)
+        const todayRev = (todayBkgs ?? []).reduce((s: number, b: any) => s + Number((b as any).services_menu?.price ?? 0), 0)
+        const monthRev = (monthTxns ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0)
         const currency = (monthTxns ?? [])[0]?.currency ?? 'NGN'
 
-        const uniqueCustomers = new Set((customers ?? []).map(c => c.customer_phone))
-        const activeCustomers = customers?.filter(c => {
+        const uniqueCustomers = new Set((customers ?? []).map((c: any) => c.customer_phone))
+        const activeCustomers = customers?.filter((c: any) => {
           const lastVisit = new Date(c.created_at)
           const daysSinceVisit = Math.floor((Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24))
           return daysSinceVisit <= 90

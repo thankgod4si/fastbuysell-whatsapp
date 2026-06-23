@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Users, Target, DollarSign, Calendar, TrendingUp, Award, Clock } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 interface StylistLog {
   id: string
   stylist: string

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
+export const dynamic = 'force-dynamic'
+
 const PACKS = [
   { id: 'starter', credits: 200,    price: 22_000,   label: 'Starter', color: '#007AFF', per: 110 },
   { id: 'growth',  credits: 1_000,  price: 100_000,  label: 'Growth',  color: '#5856D6', per: 100, popular: true },

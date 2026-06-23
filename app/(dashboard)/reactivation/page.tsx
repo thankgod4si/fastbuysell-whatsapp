@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { AlertCircle, TrendingDown, Send, Gift, Crown, ArrowRight } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 interface AtRiskCustomer {
   id: string
   name: string

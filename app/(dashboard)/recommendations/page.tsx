@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Sparkles, TrendingUp, Target, DollarSign, ArrowUpRight } from 'lucide-react'
 
+export const dynamic = 'force-dynamic'
+
 interface ProductRecommendation {
   service: string
   recommendedProduct: string

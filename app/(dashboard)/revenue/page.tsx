@@ -5,6 +5,8 @@ import { supabaseBrowser } from '@/lib/supabase-browser'
 import { DollarSign, TrendingUp, Calendar, BarChart3, PieChart, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from 'recharts'
 
+export const dynamic = 'force-dynamic'
+
 const COLORS = ['#8B5CF6', '#059669', '#007AFF', '#FF9500', '#FF6B6B', '#AF52DE']
 
 export default function RevenuePage() {

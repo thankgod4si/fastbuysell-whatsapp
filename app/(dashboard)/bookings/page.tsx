@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { supabaseBrowser } from '@/lib/supabase-browser'
 
+export const dynamic = 'force-dynamic'
+
 interface BookingRow {
   id: string
   customer_name: string

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { BarChart3, TrendingUp, Users, DollarSign, Target, ArrowUpRight, Award, Zap } from 'lucide-react'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 
+export const dynamic = 'force-dynamic'
+
 export default function ExecutivePage() {
   const [loading, setLoading] = useState(true)
 
