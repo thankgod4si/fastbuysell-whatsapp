@@ -68,7 +68,7 @@ export default function ReactivationPage() {
     comeback_offer: {
       label: 'Comeback Offer',
       icon: Gift,
-      color: '#8B5CF6',
+      color: '#007AFF',
       message: 'Send 15% discount offer'
     },
     product_promo: {
@@ -128,10 +128,10 @@ export default function ReactivationPage() {
         </div>
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-3 mb-2">
-            <ArrowRight size={20} className="text-[#8B5CF6]" />
+            <ArrowRight size={20} className="text-[#007AFF]" />
             <span className="text-xs font-semibold text-[#8E8E93]">Potential Lost Revenue</span>
           </div>
-          <p className="text-2xl font-black text-[#8B5CF6]">₦{stats.totalLostRevenue.toLocaleString()}</p>
+          <p className="text-2xl font-black text-[#007AFF]">₦{stats.totalLostRevenue.toLocaleString()}</p>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-3 mb-2">
@@ -191,7 +191,7 @@ export default function ReactivationPage() {
                   </span>
                   <span className="text-xs text-[#8E8E93] flex-1">{config.message}</span>
                   <button 
-                    className="flex items-center gap-2 px-4 py-2 bg-[#8B5CF6] text-white rounded-xl text-xs font-semibold hover:bg-[#7C3AED] transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-[#007AFF] text-white rounded-xl text-xs font-semibold hover:bg-[#7C3AED] transition-colors"
                   >
                     <Send size={14} />
                     Send Now
@@ -208,7 +208,7 @@ export default function ReactivationPage() {
         <h3 className="font-bold text-[#1C1C1E] mb-4">Bulk Reactivation Campaign</h3>
         <div className="grid md:grid-cols-3 gap-4">
           <button className="flex items-center gap-3 p-4 border border-black/[0.06] rounded-xl hover:bg-black/[0.02] transition-colors text-left">
-            <Gift size={20} className="text-[#8B5CF6]" />
+            <Gift size={20} className="text-[#007AFF]" />
             <div>
               <p className="font-semibold text-[#1C1C1E] text-sm">Send Comeback Offers</p>
               <p className="text-xs text-[#8E8E93]">15% discount to all at-risk</p>

@@ -121,7 +121,7 @@ function ApptRow({ b, today }: { b: BookingRow; today: string }) {
   return (
     <div className="flex items-center gap-3 py-3 border-b border-black/[0.04] last:border-0">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
-        style={{ background: isToday ? 'linear-gradient(135deg,#8B5CF6,#D946EF)' : '#E5E7EB' }}>
+        style={{ background: isToday ? 'linear-gradient(135deg,#007AFF,#D946EF)' : '#E5E7EB' }}>
         <span style={{ color: isToday ? 'white' : '#6B7280' }}>{initials}</span>
       </div>
       <div className="flex-1 min-w-0">
@@ -167,9 +167,9 @@ function InboxRow({ item }: { item: { channel: string; recipient: string; conten
 
 function SetupBanner() {
   return (
-    <div className="rounded-3xl border-2 border-dashed border-[#8B5CF6]/25 bg-[#FAF5FF] p-6 flex items-center gap-5">
+    <div className="rounded-3xl border-2 border-dashed border-[#007AFF]/25 bg-[#FAF5FF] p-6 flex items-center gap-5">
       <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-        style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)' }}>
+        style={{ background: 'linear-gradient(135deg,#007AFF,#D946EF)' }}>
         <Icon d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" size={20} color="white" />
       </div>
       <div className="flex-1 min-w-0">
@@ -177,7 +177,7 @@ function SetupBanner() {
         <p className="text-xs text-[#6B7280] mt-0.5">Let customers book appointments 24/7 via WhatsApp, Instagram, and Facebook — fully automated.</p>
       </div>
       <Link href="/settings" className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold text-white"
-        style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)' }}>
+        style={{ background: 'linear-gradient(135deg,#007AFF,#D946EF)' }}>
         Set up →
       </Link>
     </div>
@@ -310,8 +310,8 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       {/* â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="rounded-3xl p-6 overflow-hidden relative"
         style={{ background: stats.aiEnabled
-          ? 'linear-gradient(135deg,#8B5CF6 0%,#D946EF 100%)'
-          : 'linear-gradient(135deg,#007AFF 0%,#5856D6 100%)',
+          ? 'linear-gradient(135deg,#007AFF 0%,#D946EF 100%)'
+          : 'linear-gradient(135deg,#007AFF 0%,#007AFF 100%)',
           boxShadow: stats.aiEnabled ? '0 8px 32px rgba(139,92,246,0.3)' : '0 8px 32px rgba(0,122,255,0.25)' }}>
         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/5" />
         <div className="relative z-10">
@@ -346,7 +346,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       {/* â”€â”€ Booking stat cards (AI enabled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {!loading && stats.aiEnabled && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Today's Appointments" value={String(stats.todayBookings)}             sub="Confirmed & paid"      color="#8B5CF6" href="/bookings"             icon={['M8 2v4','M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']} />
+          <StatCard label="Today's Appointments" value={String(stats.todayBookings)}             sub="Confirmed & paid"      color="#007AFF" href="/bookings"             icon={['M8 2v4','M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']} />
           <StatCard label="Today's Revenue"      value={fmtMoney(stats.todayRevenue,stats.currency)} sub="From paid bookings"  color="#059669" href="/bookings"             icon={['M12 2v20','M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']} />
           <StatCard label="Month Revenue"        value={fmtMoney(stats.monthRevenue,stats.currency)} sub="All confirmed"       color="#007AFF" href="/bookings?tab=sales"   icon={['M18 20V10','M12 20V4','M6 20v-6']} />
           <StatCard label="Total Customers"      value={String(stats.totalCustomers)}            sub="Unique paid clients"   color="#FF9500" href="/leads"                icon={['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z','M23 21v-2a4 4 0 0 0-3-3.87','M16 3.13a4 4 0 0 1 0 7.75']} />
@@ -380,7 +380,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
           <div className="lg:col-span-2 bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div className="px-6 py-4 border-b border-black/[0.05] flex items-center justify-between">
               <h2 className="font-bold text-[#1C1C1E] text-sm">Upcoming Appointments</h2>
-              <Link href="/bookings" className="text-xs font-semibold text-[#8B5CF6]">View all →</Link>
+              <Link href="/bookings" className="text-xs font-semibold text-[#007AFF]">View all →</Link>
             </div>
             <div className="px-6">
               {stats.aiEnabled ? (
@@ -393,7 +393,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
               ) : (
                 <div className="py-10 text-center">
                   <p className="text-[#8E8E93] text-sm">AI booking not enabled</p>
-                  <Link href="/settings" className="text-xs text-[#8B5CF6] font-semibold mt-1 block">Enable AI booking →</Link>
+                  <Link href="/settings" className="text-xs text-[#007AFF] font-semibold mt-1 block">Enable AI booking →</Link>
                 </div>
               )}
             </div>
@@ -423,7 +423,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
             title="Wig Install Conversion"
             insight="Customers who receive Wig Installs are 72% more likely to purchase Edge Control."
             recommendation="Bundle Edge Control with all wig installations"
-            color="#8B5CF6"
+            color="#007AFF"
           />
           <AIInsightCard
             title="Dry Scalp Pattern"
@@ -444,7 +444,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       {!loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { href: '/customers',  label: 'Customers',       sub: 'Manage profiles',   color: '#8B5CF6', icon: <Users size={16} /> },
+            { href: '/customers',  label: 'Customers',       sub: 'Manage profiles',   color: '#007AFF', icon: <Users size={16} /> },
             { href: '/revenue',    label: 'Revenue',         sub: 'Analytics & charts', color: '#059669', icon: <DollarSign size={16} /> },
             { href: '/staff',      label: 'Staff Portal',    sub: 'Performance',       color: '#007AFF', icon: <Target size={16} /> },
             { href: '/reactivation', label: 'Reactivation', sub: 'At-risk customers',  color: '#FF6B6B', icon: <AlertCircle size={16} /> },

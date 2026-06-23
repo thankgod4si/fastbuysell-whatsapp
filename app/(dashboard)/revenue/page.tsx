@@ -7,7 +7,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 
 export const dynamic = 'force-dynamic'
 
-const COLORS = ['#8B5CF6', '#059669', '#007AFF', '#FF9500', '#FF6B6B', '#AF52DE']
+const COLORS = ['#007AFF', '#059669', '#007AFF', '#FF9500', '#FF6B6B', '#AF52DE']
 
 export default function RevenuePage() {
   const [loading, setLoading] = useState(true)
@@ -74,7 +74,7 @@ export default function RevenuePage() {
               onClick={() => setTimeRange(range)}
               className={`px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-colors ${
                 timeRange === range 
-                  ? 'bg-[#8B5CF6] text-white' 
+                  ? 'bg-[#007AFF] text-white' 
                   : 'bg-white text-[#8E8E93] hover:text-[#1C1C1E] border border-black/[0.06]'
               }`}
             >
@@ -96,7 +96,7 @@ export default function RevenuePage() {
         </div>
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center justify-between mb-2">
-            <Calendar size={20} className="text-[#8B5CF6]" />
+            <Calendar size={20} className="text-[#007AFF]" />
             <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-full">↑ 18%</span>
           </div>
           <p className="text-2xl font-black text-[#1C1C1E]">₦{stats.week.toLocaleString()}</p>
@@ -133,7 +133,7 @@ export default function RevenuePage() {
               formatter={(value: any) => `₦${Number(value).toLocaleString()}`}
             />
             <Legend />
-            <Line type="monotone" dataKey="revenue" stroke="#8B5CF6" strokeWidth={3} name="Total Revenue" />
+            <Line type="monotone" dataKey="revenue" stroke="#007AFF" strokeWidth={3} name="Total Revenue" />
             <Line type="monotone" dataKey="services" stroke="#059669" strokeWidth={2} name="Service Revenue" />
             <Line type="monotone" dataKey="products" stroke="#FF9500" strokeWidth={2} name="Product Revenue" />
           </LineChart>
@@ -147,7 +147,7 @@ export default function RevenuePage() {
           <div className="space-y-4">
             {topServices.map((service, i) => (
               <div key={i} className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center text-[#8B5CF6] font-bold text-sm">
+                <div className="w-8 h-8 rounded-lg bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF] font-bold text-sm">
                   {i + 1}
                 </div>
                 <div className="flex-1">

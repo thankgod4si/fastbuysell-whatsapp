@@ -113,7 +113,7 @@ export default function CustomersPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-3 mb-2">
-            <Users size={20} className="text-[#8B5CF6]" />
+            <Users size={20} className="text-[#007AFF]" />
             <span className="text-xs font-semibold text-[#8E8E93]">Total Customers</span>
           </div>
           <p className="text-2xl font-black text-[#1C1C1E]">{stats.total}</p>
@@ -150,7 +150,7 @@ export default function CustomersPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search customers..."
-            className="w-full bg-white border border-black/[0.06] rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#8B5CF6] transition-colors"
+            className="w-full bg-white border border-black/[0.06] rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] transition-colors"
           />
         </div>
         <div className="flex gap-2">
@@ -160,7 +160,7 @@ export default function CustomersPage() {
               onClick={() => setFilter(f)}
               className={`px-4 py-2 rounded-xl text-xs font-semibold capitalize transition-colors ${
                 filter === f 
-                  ? 'bg-[#8B5CF6] text-white' 
+                  ? 'bg-[#007AFF] text-white' 
                   : 'bg-white text-[#8E8E93] hover:text-[#1C1C1E] border border-black/[0.06]'
               }`}
             >
@@ -195,7 +195,7 @@ export default function CustomersPage() {
                   <tr key={customer.id} className="border-b border-black/[0.04] hover:bg-black/[0.02] transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#8B5CF6] to-[#D946EF] flex items-center justify-center text-white font-bold text-sm">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#007AFF] to-[#D946EF] flex items-center justify-center text-white font-bold text-sm">
                           {customer.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                         </div>
                         <div>
@@ -274,7 +274,7 @@ export default function CustomersPage() {
             <div className="p-6 border-b border-black/[0.06]">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#8B5CF6] to-[#D946EF] flex items-center justify-center text-white font-black text-xl">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#007AFF] to-[#D946EF] flex items-center justify-center text-white font-black text-xl">
                     {selectedCustomer.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                   </div>
                   <div>
@@ -333,7 +333,7 @@ export default function CustomersPage() {
                   ].map((item, i) => (
                     <div key={i} className="flex gap-4">
                       <div className="flex flex-col items-center">
-                        <div className="w-3 h-3 rounded-full bg-[#8B5CF6]" />
+                        <div className="w-3 h-3 rounded-full bg-[#007AFF]" />
                         {i < 3 && <div className="w-0.5 h-full bg-[#E5E7EB] mt-2" />}
                       </div>
                       <div className="flex-1 pb-4">

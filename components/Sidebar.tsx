@@ -55,6 +55,9 @@ const ICON = {
   alert:      ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4', 'M12 17h.01'],
   trending:   ['M23 6l-9.5 9.5-5-5L1 18'],
   pie:        ['M21.21 15.89A10 10 0 1 1 8 2.83', 'M22 12A10 10 0 0 0 12 2v10z'],
+  package:    ['M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', 'M3.27 6.96 12 12.01 20.73 6.96', 'M12 22.08V12.01'],
+  report:     ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M16 13H8', 'M16 17H8', 'M10 9H8'],
+  shield:     ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
 } as const
 
 // ---------------------------------------------------------------------------
@@ -66,29 +69,32 @@ type NavItem = { group: string | null; href: string; label: string; icon: PathOr
 const NAV: NavItem[] = [
   { group: null,         href: '/dashboard',  label: 'Dashboard',         icon: ICON.dashboard, color: '#007AFF' },
   // ── Growth Intelligence ─────────────────────────────────────────────────────────────
-  { group: 'Growth',     href: '/customers',  label: 'Customers',         icon: ICON.users,     color: '#8B5CF6' },
+  { group: 'Growth',     href: '/customers',  label: 'Customers',         icon: ICON.users,     color: '#007AFF' },
   { group: 'Growth',     href: '/revenue',    label: 'Revenue',           icon: ICON.dollar,    color: '#059669' },
   { group: 'Growth',     href: '/executive',  label: 'Executive',         icon: ICON.chart,      color: '#FF9500' },
   // ── Operations ─────────────────────────────────────────────────────────────────────
-  { group: 'Operations', href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#8B5CF6' },
+  { group: 'Operations', href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#007AFF' },
   { group: 'Operations', href: '/staff',      label: 'Staff Portal',      icon: ICON.target,     color: '#007AFF' },
+  { group: 'Operations', href: '/staff-management', label: 'Staff Management', icon: ICON.shield,  color: '#007AFF' },
+  { group: 'Operations', href: '/inventory',  label: 'Product Inventory', icon: ICON.package,    color: '#007AFF' },
+  { group: 'Operations', href: '/reports',    label: 'Customer Reports',  icon: ICON.report,     color: '#DC2626' },
   // ── AI & Automation ────────────────────────────────────────────────────────────────
   { group: 'AI',         href: '/recommendations', label: 'Recommendations', icon: ICON.sparkles,  color: '#FF9500' },
-  { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#8B5CF6' },
+  { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#007AFF' },
   { group: 'AI',         href: '/reactivation', label: 'Reactivation',     icon: ICON.alert,      color: '#FF6B6B' },
   // ── Outreach ─────────────────────────────────────────────────────────────────────
   { group: 'Outreach',   href: '/contacts',   label: 'WhatsApp Blast',    icon: ICON.whatsapp,  color: '#25D366' },
-  { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#AF52DE' },
+  { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#007AFF' },
   { group: 'Outreach',   href: '/sms',        label: 'SMS Blast',         icon: ICON.sms,       color: '#FF9500' },
   { group: 'Outreach',   href: '/marketing',  label: 'Meta Ads',          icon: ICON.megaphone, color: '#FF9500' },
   // ── Automation ───────────────────────────────────────────────────────────────────
   { group: 'Automation', href: '/rules',      label: 'Auto Replies',      icon: ICON.zap,       color: '#FF9500' },
-  { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#AF52DE' },
+  { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#007AFF' },
   // ── Connect ───────────────────────────────────────────────────────────────
   { group: 'Connect',    href: '/meta',          label: 'Meta & WhatsApp',   icon: ICON.phone,     color: '#007AFF' },
-  { group: 'Connect',    href: '/catalog',       label: 'Products',          icon: ICON.templates, color: '#AF52DE' },
-  { group: 'Connect',    href: '/flow-builder',  label: 'Booking Flow',      icon: ICON.zap,       color: '#8B5CF6' },
-  { group: 'Connect',    href: '/templates',     label: 'Templates',         icon: ICON.templates, color: '#5856D6' },
+  { group: 'Connect',    href: '/catalog',       label: 'Products',          icon: ICON.templates, color: '#007AFF' },
+  { group: 'Connect',    href: '/flow-builder',  label: 'Booking Flow',      icon: ICON.zap,       color: '#007AFF' },
+  { group: 'Connect',    href: '/templates',     label: 'Templates',         icon: ICON.templates, color: '#007AFF' },
   // ── Analytics ────────────────────────────────────────────────────────────
   { group: 'Analytics',  href: '/logs',       label: 'Delivery Feed',     icon: ICON.robot,     color: '#8E8E93' },
   // ── Account ───────────────────────────────────────────────────────────────

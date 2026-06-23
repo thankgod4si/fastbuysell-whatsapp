@@ -53,10 +53,10 @@ export default function RecommendationsPage() {
         </div>
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-3 mb-2">
-            <TrendingUp size={20} className="text-[#8B5CF6]" />
+            <TrendingUp size={20} className="text-[#007AFF]" />
             <span className="text-xs font-semibold text-[#8E8E93]">Avg Conversion Rate</span>
           </div>
-          <p className="text-2xl font-black text-[#8B5CF6]">{stats.avgConversion}%</p>
+          <p className="text-2xl font-black text-[#007AFF]">{stats.avgConversion}%</p>
         </div>
         <div className="bg-white rounded-2xl p-5 border border-black/[0.04]">
           <div className="flex items-center gap-3 mb-2">
@@ -68,7 +68,7 @@ export default function RecommendationsPage() {
       </div>
 
       {/* AI Insights */}
-      <div className="bg-gradient-to-r from-[#8B5CF6] to-[#D946EF] rounded-2xl p-6 text-white">
+      <div className="bg-gradient-to-r from-[#007AFF] to-[#D946EF] rounded-2xl p-6 text-white">
         <div className="flex items-center gap-3 mb-4">
           <Sparkles size={24} />
           <h3 className="font-bold text-lg">AI Recommendation Insights</h3>
@@ -114,7 +114,7 @@ export default function RecommendationsPage() {
                     <div className="flex items-center gap-2">
                       <div className="flex-1 h-2 bg-black/[0.06] rounded-full overflow-hidden max-w-[100px]">
                         <div 
-                          className="h-full bg-[#8B5CF6] rounded-full"
+                          className="h-full bg-[#007AFF] rounded-full"
                           style={{ width: `${rec.conversionRate}%` }}
                         />
                       </div>
@@ -123,7 +123,7 @@ export default function RecommendationsPage() {
                   </td>
                   <td className="px-6 py-4 font-bold text-[#059669]">₦{rec.revenueGenerated.toLocaleString()}</td>
                   <td className="px-6 py-4 text-right">
-                    <button className="text-[#8B5CF6] text-xs font-semibold hover:underline">
+                    <button className="text-[#007AFF] text-xs font-semibold hover:underline">
                       Edit Rule
                     </button>
                   </td>
@@ -138,13 +138,13 @@ export default function RecommendationsPage() {
       <div className="bg-white rounded-2xl p-6 border border-black/[0.04] border-dashed">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Target size={20} className="text-[#8B5CF6]" />
+            <Target size={20} className="text-[#007AFF]" />
             <div>
               <p className="font-semibold text-[#1C1C1E]">Add New Recommendation Rule</p>
               <p className="text-xs text-[#8E8E93]">Create automatic product recommendations for services</p>
             </div>
           </div>
-          <button className="px-4 py-2 bg-[#8B5CF6] text-white rounded-xl text-xs font-semibold hover:bg-[#7C3AED] transition-colors">
+          <button className="px-4 py-2 bg-[#007AFF] text-white rounded-xl text-xs font-semibold hover:bg-[#7C3AED] transition-colors">
             Add Rule
           </button>
         </div>

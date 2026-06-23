@@ -36,7 +36,7 @@ export default function ExecutivePage() {
 
   const kpis = [
     { label: 'Monthly Revenue', value: '₦720,000', change: '+23%', color: '#059669', icon: DollarSign },
-    { label: 'Repeat Customer Rate', value: '68%', change: '+5%', color: '#8B5CF6', icon: Users },
+    { label: 'Repeat Customer Rate', value: '68%', change: '+5%', color: '#007AFF', icon: Users },
     { label: 'Avg Customer LTV', value: '₦285,000', change: '+12%', color: '#007AFF', icon: TrendingUp },
     { label: 'Churn Rate', value: '12%', change: '-3%', color: '#FF6B6B', icon: Target },
   ]
@@ -84,7 +84,7 @@ export default function ExecutivePage() {
               formatter={(value: any) => `₦${Number(value).toLocaleString()}`}
             />
             <Legend />
-            <Bar dataKey="revenue" fill="#8B5CF6" name="Actual Revenue" />
+            <Bar dataKey="revenue" fill="#007AFF" name="Actual Revenue" />
             <Bar dataKey="target" fill="#E5E7EB" name="Target" />
           </BarChart>
         </ResponsiveContainer>
@@ -117,7 +117,7 @@ export default function ExecutivePage() {
         </div>
 
         {/* AI Revenue Impact */}
-        <div className="bg-gradient-to-br from-[#8B5CF6] to-[#D946EF] rounded-2xl p-6 text-white">
+        <div className="bg-gradient-to-br from-[#007AFF] to-[#D946EF] rounded-2xl p-6 text-white">
           <div className="flex items-center gap-3 mb-4">
             <Zap size={20} />
             <h3 className="font-bold text-lg">AI Revenue Impact</h3>
@@ -148,7 +148,7 @@ export default function ExecutivePage() {
             <p className="text-xs text-[#8E8E93] mt-1">Repeat Customer Rate</p>
           </div>
           <div className="text-center p-4 bg-black/[0.02] rounded-xl">
-            <p className="text-3xl font-black text-[#8B5CF6]">₦{metrics.avgCustomerLifetimeValue.toLocaleString()}</p>
+            <p className="text-3xl font-black text-[#007AFF]">₦{metrics.avgCustomerLifetimeValue.toLocaleString()}</p>
             <p className="text-xs text-[#8E8E93] mt-1">Avg Customer LTV</p>
           </div>
           <div className="text-center p-4 bg-black/[0.02] rounded-xl">

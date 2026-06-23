@@ -368,7 +368,7 @@ function LeadsPageContent() {
             <button key={f} onClick={() => setFilter(f)}
               className="flex-1 text-[10px] font-bold py-1.5 rounded-xl transition-all"
               style={filter === f
-                ? { background: '#8B5CF612', color: '#8B5CF6' }
+                ? { background: '#007AFF12', color: '#007AFF' }
                 : { color: '#8E8E93' }}>
               {f === 'all' ? 'All' : f === 'upcoming' ? 'Booked' : 'Unpaid'}
               <span className="ml-0.5 opacity-60">{counts[f]}</span>
@@ -411,7 +411,7 @@ function LeadsPageContent() {
                 <p className="text-[#1C1C1E] font-bold text-sm truncate">{displayName(selContact, displayBooking)}</p>
                 <p className="text-[#8E8E93] text-[11px] font-mono">{selContact.phone}</p>
                 {displayBooking && (
-                  <p className="text-[11px] text-[#8B5CF6] font-semibold truncate mt-0.5">
+                  <p className="text-[11px] text-[#007AFF] font-semibold truncate mt-0.5">
                     {formatServiceId(displayBooking.service_id)} · {formatApptDate(displayBooking.appointment_date)} at {displayBooking.time_slot}
                   </p>
                 )}
