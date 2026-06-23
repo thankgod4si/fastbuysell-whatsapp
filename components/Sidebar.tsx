@@ -48,6 +48,13 @@ const ICON = {
   chevronL:   'M15 18l-6-6 6-6',
   chevronR:   'M9 18l6-6-6-6',
   menu:       ['M3 12h18', 'M3 6h18', 'M3 18h18'],
+  users:      ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
+  dollar:     ['M12 2v20', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'],
+  target:     ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
+  sparkles:   'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+  alert:      ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4', 'M12 17h.01'],
+  trending:   ['M23 6l-9.5 9.5-5-5L1 18'],
+  pie:        ['M21.21 15.89A10 10 0 1 1 8 2.83', 'M22 12A10 10 0 0 0 12 2v10z'],
 } as const
 
 // ---------------------------------------------------------------------------
@@ -58,17 +65,23 @@ type NavItem = { group: string | null; href: string; label: string; icon: PathOr
 
 const NAV: NavItem[] = [
   { group: null,         href: '/dashboard',  label: 'Dashboard',         icon: ICON.dashboard, color: '#007AFF' },
-  // ── Bookings ─────────────────────────────────────────────────────────────
-  { group: 'Bookings',   href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#8B5CF6' },
-  { group: 'Bookings',   href: '/leads',      label: 'Customers',         icon: ICON.leads,     color: '#007AFF' },
-  // ── Inbox ────────────────────────────────────────────────────────────────
-  { group: 'Inbox',      href: '/inbox',      label: 'Unified Inbox',     icon: ICON.logs,      color: '#25D366' },
-  // ── Outreach ─────────────────────────────────────────────────────────────
+  // ── Growth Intelligence ─────────────────────────────────────────────────────────────
+  { group: 'Growth',     href: '/customers',  label: 'Customers',         icon: ICON.users,     color: '#8B5CF6' },
+  { group: 'Growth',     href: '/revenue',    label: 'Revenue',           icon: ICON.dollar,    color: '#059669' },
+  { group: 'Growth',     href: '/executive',  label: 'Executive',         icon: ICON.chart,      color: '#FF9500' },
+  // ── Operations ─────────────────────────────────────────────────────────────────────
+  { group: 'Operations', href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#8B5CF6' },
+  { group: 'Operations', href: '/staff',      label: 'Staff Portal',      icon: ICON.target,     color: '#007AFF' },
+  // ── AI & Automation ────────────────────────────────────────────────────────────────
+  { group: 'AI',         href: '/recommendations', label: 'Recommendations', icon: ICON.sparkles,  color: '#FF9500' },
+  { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#8B5CF6' },
+  { group: 'AI',         href: '/reactivation', label: 'Reactivation',     icon: ICON.alert,      color: '#FF6B6B' },
+  // ── Outreach ─────────────────────────────────────────────────────────────────────
   { group: 'Outreach',   href: '/contacts',   label: 'WhatsApp Blast',    icon: ICON.whatsapp,  color: '#25D366' },
   { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#AF52DE' },
   { group: 'Outreach',   href: '/sms',        label: 'SMS Blast',         icon: ICON.sms,       color: '#FF9500' },
   { group: 'Outreach',   href: '/marketing',  label: 'Meta Ads',          icon: ICON.megaphone, color: '#FF9500' },
-  // ── Automation ───────────────────────────────────────────────────────────
+  // ── Automation ───────────────────────────────────────────────────────────────────
   { group: 'Automation', href: '/rules',      label: 'Auto Replies',      icon: ICON.zap,       color: '#FF9500' },
   { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#AF52DE' },
   // ── Connect ───────────────────────────────────────────────────────────────
