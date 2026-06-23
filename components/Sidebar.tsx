@@ -85,7 +85,7 @@ const NAV: NavItem[] = [
   { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#007AFF' },
   { group: 'AI',         href: '/reactivation', label: 'Reactivation',     icon: ICON.alert,      color: '#FF6B6B' },
   // ── Outreach ─────────────────────────────────────────────────────────────────────
-  { group: 'Outreach',   href: '/contacts',   label: 'WhatsApp Blast',    icon: ICON.whatsapp,  color: '#25D366' },
+  { group: 'Outreach',   href: '/contacts',   label: 'AI Booking Assistant', icon: ICON.whatsapp,  color: '#25D366' },
   { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#007AFF' },
   { group: 'Outreach',   href: '/sms',        label: 'SMS Blast',         icon: ICON.sms,       color: '#FF9500' },
   { group: 'Outreach',   href: '/marketing',  label: 'Meta Ads',          icon: ICON.megaphone, color: '#FF9500' },

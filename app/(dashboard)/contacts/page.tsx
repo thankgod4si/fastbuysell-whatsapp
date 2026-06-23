@@ -9,9 +9,72 @@ export const dynamic = 'force-dynamic'
 interface Message {
   id: string; direction: 'outbound' | 'inbound'; content: string | null
   msg_type: string; status: string; sent_at: string
+  isAI?: boolean
+  bookingStatus?: 'pending' | 'confirmed' | 'completed'
 }
 
 type ToastItem = { id: number; msg: string; ok: boolean }
+
+function generateMockBookingConversation(contactId: string): Message[] {
+  const now = new Date()
+  const baseTime = now.getTime()
+  
+  return [
+    {
+      id: '1',
+      direction: 'inbound',
+      content: "Hi, I'd like to book an appointment for a wig installation",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 300000).toISOString()
+    },
+    {
+      id: '2',
+      direction: 'outbound',
+      content: "Hello! 👋 I'd be happy to help you book a wig installation. Let me check our availability.\n\nI see we have openings this week:\n- Tuesday 2pm with Blessing\n- Wednesday 10am with Anita\n- Thursday 4pm with Chisom\n\nWhich time works best for you?",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 240000).toISOString(),
+      isAI: true
+    },
+    {
+      id: '3',
+      direction: 'inbound',
+      content: "Tuesday 2pm works for me!",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 180000).toISOString()
+    },
+    {
+      id: '4',
+      direction: 'outbound',
+      content: "Perfect! ✅ I've booked you for Tuesday at 2pm with Blessing.\n\n**Booking Details:**\n- Service: Wig Installation\n- Stylist: Blessing\n- Date: Tuesday, June 24th\n- Time: 2:00 PM\n- Price: ₦40,000\n\nWould you like me to add any products to your appointment? We have Edge Control and Mousse available.",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 120000).toISOString(),
+      isAI: true,
+      bookingStatus: 'confirmed'
+    },
+    {
+      id: '5',
+      direction: 'inbound',
+      content: "Yes, please add the Edge Control",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 60000).toISOString()
+    },
+    {
+      id: '6',
+      direction: 'outbound',
+      content: "Great! I've added Edge Control to your booking.\n\n**Updated Total:** ₦43,500\n\nYour appointment is confirmed! You'll receive a reminder 24 hours before your appointment. See you on Tuesday! 💇‍♀️",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 30000).toISOString(),
+      isAI: true,
+      bookingStatus: 'confirmed'
+    }
+  ]
+}
 
 function parseNumbers(raw: string): string[] {
   return raw
@@ -225,7 +288,13 @@ export default function ContactsPage() {
     const res = await fetch(`/api/conversations/${contactId}`)
     if (res.ok) {
       const data = await res.json()
-      setMessages(data.messages ?? [])
+      // If no messages, add mock AI booking conversation
+      if (!data.messages || data.messages.length === 0) {
+        const mockMessages = generateMockBookingConversation(contactId)
+        setMessages(mockMessages)
+      } else {
+        setMessages(data.messages ?? [])
+      }
       setActiveLead(data.lead ?? null)
     }
   }, [])
@@ -345,6 +414,10 @@ export default function ContactsPage() {
     return m.content ?? ''
   }
 
+  function isAIMessage(m: Message) {
+    return m.isAI === true && m.direction === 'outbound'
+  }
+
   return (
     <div className="flex flex-col" style={{ position: 'fixed', top: 0, left: 'var(--sb-w, 16rem)', right: 0, bottom: 0, zIndex: 10 }}>
 
@@ -360,8 +433,8 @@ export default function ContactsPage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-[#1C1C1E] font-bold text-sm">WhatsApp</h1>
-              <p className="text-[#8E8E93] text-[11px]">{contacts.length} contacts</p>
+              <h1 className="text-[#1C1C1E] font-bold text-sm">AI Booking Assistant</h1>
+              <p className="text-[#8E8E93] text-[11px]">{contacts.length} conversations</p>
             </div>
           </div>
           <div className="flex gap-3 text-xs">
@@ -511,19 +584,35 @@ export default function ContactsPage() {
                 ) : messages.map(m => {
                   const out = m.direction === 'outbound'
                   const isForm = m.msg_type === 'form_submission'
+                  const ai = isAIMessage(m)
                   return (
                     <div key={m.id} className={`flex mb-2 ${out ? 'justify-end' : 'justify-start'}`}>
                       <div className="max-w-[72%]">
-                        <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm`}
-                          style={
-                            isForm ? { background: '#34C75910', border: '1px solid #34C75930' } :
-                            out ? { background: '#DCF8C6' } :
-                            { background: 'white', border: '1px solid rgba(0,0,0,0.06)' }
-                          }>
-                          <p style={{ color: isForm ? '#34C759' : '#1C1C1E' }} className="whitespace-pre-wrap">
-                            {isForm && '✅ '}{bubbleLabel(m)}
-                          </p>
+                        <div className="relative">
+                          {ai && (
+                            <div className="absolute -top-2 left-0 bg-[#007AFF] text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                              </svg>
+                              AI
+                            </div>
+                          )}
+                          <div className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${ai ? 'mt-4' : ''}`}
+                            style={
+                              isForm ? { background: '#34C75910', border: '1px solid #34C75930' } :
+                              out ? { background: ai ? '#007AFF' : '#DCF8C6', color: ai ? 'white' : '#1C1C1E' } :
+                              { background: 'white', border: '1px solid rgba(0,0,0,0.06)' }
+                            }>
+                            <p style={{ color: isForm ? '#34C759' : (ai ? 'white' : '#1C1C1E') }} className="whitespace-pre-wrap">
+                              {isForm && '✅ '}{bubbleLabel(m)}
+                            </p>
+                          </div>
                         </div>
+                        {m.bookingStatus === 'confirmed' && (
+                          <div className="mt-1 flex items-center gap-1 px-1">
+                            <span className="text-[10px] font-semibold text-[#34C759]">✓ Booking Confirmed</span>
+                          </div>
+                        )}
                         <div className={`flex items-center gap-1 mt-0.5 px-1 ${out ? 'justify-end' : 'justify-start'}`}>
                           <span className="text-[10px] text-[#667781]">
                             {new Date(m.sent_at).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}
