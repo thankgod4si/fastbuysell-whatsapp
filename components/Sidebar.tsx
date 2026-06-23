@@ -68,6 +68,8 @@ type NavItem = { group: string | null; href: string; label: string; icon: PathOr
 
 const NAV: NavItem[] = [
   { group: null,         href: '/dashboard',  label: 'Dashboard',         icon: ICON.dashboard, color: '#007AFF' },
+  // ── AI Growth Manager ─────────────────────────────────────────────────────────────
+  { group: null,         href: '/ai-growth',  label: 'AI Growth Manager', icon: ICON.sparkles,  color: '#007AFF' },
   // ── Growth Intelligence ─────────────────────────────────────────────────────────────
   { group: 'Growth',     href: '/customers',  label: 'Customers',         icon: ICON.users,     color: '#007AFF' },
   { group: 'Growth',     href: '/revenue',    label: 'Revenue',           icon: ICON.dollar,    color: '#059669' },
