@@ -153,6 +153,7 @@ export default function SettingsPage() {
   const [waNumbers,      setWaNumbers]      = useState<WaNumber[]>([])
   const [waStep,         setWaStep]         = useState<WaStep>('idle')
   const [showRegForm,    setShowRegForm]    = useState(false)
+  const [showAddExisting, setShowAddExisting] = useState(false)
   const [regCc,          setRegCc]          = useState('')
   const [regPhone,       setRegPhone]       = useState('')
   const [regName,        setRegName]        = useState('')
@@ -161,6 +162,12 @@ export default function SettingsPage() {
   const [verifyCode,     setVerifyCode]     = useState('')
   const [waWorking,      setWaWorking]      = useState(false)
   const [waError,        setWaError]        = useState('')
+  
+  // Add existing number
+  const [existingPhoneId, setExistingPhoneId] = useState('')
+  const [existingPhone, setExistingPhone] = useState('')
+  const [existingName, setExistingName] = useState('')
+  const [addExistingWorking, setAddExistingWorking] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -217,6 +224,41 @@ export default function SettingsPage() {
   function resetRegForm() {
     setRegCc(''); setRegPhone(''); setRegName(''); setRegPin('')
     setVerifyCode(''); setWaError(''); setWaStep('idle'); setShowRegForm(false)
+  }
+
+  async function addExistingNumber(e: React.SyntheticEvent) {
+    e.preventDefault()
+    setAddExistingWorking(true)
+    setWaError('')
+    
+    try {
+      const res = await fetch('/api/whatsapp/add-existing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone_number_id: existingPhoneId,
+          phone_number: existingPhone,
+          display_name: existingName
+        })
+      })
+      
+      const data = await res.json()
+      if (data.error) {
+        setWaError(data.error)
+      } else {
+        // Refresh numbers
+        const nums = await fetch('/api/whatsapp/numbers').then(r => r.json())
+        setWaNumbers(Array.isArray(nums) ? nums : [])
+        setShowAddExisting(false)
+        setExistingPhoneId('')
+        setExistingPhone('')
+        setExistingName('')
+      }
+    } catch (err) {
+      setWaError('Failed to add number')
+    } finally {
+      setAddExistingWorking(false)
+    }
   }
 
   async function registerNumber(e: React.SyntheticEvent) {
@@ -397,6 +439,92 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* ── Add Existing Number (for testing) ── */}
+          {buyStep === 'idle' && (
+            <div className="rounded-2xl overflow-hidden border border-[#007AFF]/25" style={{ background: 'linear-gradient(135deg,#EFF6FF,#DBEAFE)' }}>
+              <div className="px-5 py-4 flex items-start gap-4">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0" style={{ background: '#007AFF' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-bold text-[#1C1C1E] text-sm">Add Existing WhatsApp Number</p>
+                    <span className="text-xs font-black px-2 py-0.5 rounded-full text-white" style={{ background: '#007AFF' }}>Test</span>
+                  </div>
+                  <p className="text-[#3C3C43] text-xs mt-1 leading-relaxed">Already have a WhatsApp number from Meta Business? Add it directly to start testing.</p>
+                  <button onClick={() => setShowAddExisting(true)}
+                    className="mt-3 px-5 py-2 rounded-2xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                    style={{ background: '#007AFF', boxShadow: '0 4px 12px rgba(0,122,255,0.3)' }}>
+                    Add Existing Number
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Add Existing Number Form ── */}
+          {showAddExisting && (
+            <div className="rounded-2xl border-2 border-[#007AFF]/30 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="font-bold text-[#1C1C1E] text-sm">Add Existing WhatsApp Number</p>
+                <button onClick={() => { setShowAddExisting(false); setWaError('') }}
+                  className="text-xs text-[#8E8E93] hover:text-[#FF3B30]">Cancel</button>
+              </div>
+              <form onSubmit={addExistingNumber} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[#6C6C70] mb-1.5">Phone Number ID (from Meta)</label>
+                  <input
+                    type="text"
+                    value={existingPhoneId}
+                    onChange={e => setExistingPhoneId(e.target.value)}
+                    placeholder="683628188046191"
+                    required
+                    className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': '#007AFF40' } as React.CSSProperties}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6C6C70] mb-1.5">Phone Number</label>
+                  <input
+                    type="text"
+                    value={existingPhone}
+                    onChange={e => setExistingPhone(e.target.value)}
+                    placeholder="+234 805 648 7759"
+                    required
+                    className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': '#007AFF40' } as React.CSSProperties}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#6C6C70] mb-1.5">Display Name</label>
+                  <input
+                    type="text"
+                    value={existingName}
+                    onChange={e => setExistingName(e.target.value)}
+                    placeholder="Pressed by VPH"
+                    required
+                    className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2"
+                    style={{ '--tw-ring-color': '#007AFF40' } as React.CSSProperties}
+                  />
+                </div>
+                {waError && (
+                  <div className="rounded-xl px-4 py-2.5 text-xs"
+                    style={{ background: '#FF3B3010', border: '1px solid #FF3B3030', color: '#FF3B30' }}>
+                    {waError}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={addExistingWorking}
+                  className="w-full text-white font-bold py-2.5 rounded-2xl transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: '#007AFF' }}
+                >
+                  {addExistingWorking ? 'Adding...' : 'Add Number'}
+                </button>
+              </form>
             </div>
           )}
 

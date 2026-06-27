@@ -148,7 +148,6 @@ interface Profile {
   trial_sends_remaining: number
   is_admin: boolean
   credits: number
-  business_type?: 'salon' | 'nails'
 }
 
 interface SidebarProps {
@@ -202,15 +201,20 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const router   = useRouter()
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [businessType, setBusinessType] = useState<'salon' | 'nails' | undefined>(undefined)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabaseBrowser.auth.getUser()
       if (!user) return
       setUserEmail(user.email ?? '')
+      
+      // Get business_type from user metadata (immediate, no DB query)
+      setBusinessType(user.user_metadata?.business_type as 'salon' | 'nails' | undefined)
+      
       const { data } = await supabaseBrowser
         .from('profiles')
-        .select('full_name, subscription_status, trial_sends_remaining, is_admin, business_type')
+        .select('full_name, subscription_status, trial_sends_remaining, is_admin')
         .eq('id', user.id)
         .single()
       if (data) {
@@ -325,7 +329,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Navigation */}
       <nav className={`flex-1 py-3 overflow-y-auto space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
         {(() => {
-          const filteredNav = getFilteredNav(profile?.business_type)
+          const filteredNav = getFilteredNav(businessType)
           const filteredGroups = Array.from(new Set(filteredNav.map(i => i.group).filter(Boolean))) as string[]
           
           return (
