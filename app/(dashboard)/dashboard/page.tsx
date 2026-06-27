@@ -190,6 +190,7 @@ export default function DashboardPage() {
   const [loading,    setLoading]    = useState(true)
   const [userName,   setUserName]   = useState('')
   const [bizName,    setBizName]    = useState('')
+  const [businessType, setBusinessType] = useState<'salon' | 'nails' | undefined>(undefined)
   const [stats,      setStats]      = useState<DashStats>({ todayBookings: 0, todayRevenue: 0, monthRevenue: 0, currency: 'NGN', totalCustomers: 0, activeCustomers: 0, newCustomersMonth: 0, repeatRate: 0, productRevenue: 0, followUpRevenue: 0, inboxToday: 0, aiEnabled: false })
   const [upcoming,   setUpcoming]   = useState<BookingRow[]>([])
   const [inbox,      setInbox]      = useState<{ channel: string; recipient: string; content: string | null; sent_at: string; direction: string }[]>([])
@@ -199,6 +200,9 @@ export default function DashboardPage() {
     async function load() {
       const { data: { user } } = await supabaseBrowser.auth.getUser()
       if (!user) { setLoading(false); return }
+
+      // Get business type from user metadata
+      setBusinessType(user.user_metadata?.business_type as 'salon' | 'nails' | undefined)
 
       const { data: profile } = await supabaseBrowser
         .from('profiles')
@@ -344,7 +348,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       {!loading && !stats.aiEnabled && <SetupBanner />}
 
       {/* â”€â”€ Booking stat cards (AI enabled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {!loading && stats.aiEnabled && (
+      {!loading && stats.aiEnabled && businessType === 'salon' && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard label="Today's Appointments" value={String(stats.todayBookings)}             sub="Confirmed & paid"      color="#007AFF" href="/bookings"             icon={['M8 2v4','M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']} />
           <StatCard label="Today's Revenue"      value={fmtMoney(stats.todayRevenue,stats.currency)} sub="From paid bookings"  color="#059669" href="/bookings"             icon={['M12 2v20','M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']} />
@@ -417,7 +421,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       )}
 
       {/* â”€â”€ AI Insight Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {!loading && stats.aiEnabled && (
+      {!loading && stats.aiEnabled && businessType === 'salon' && (
         <div className="grid md:grid-cols-3 gap-4">
           <AIInsightCard
             title="Wig Install Conversion"

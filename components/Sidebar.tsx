@@ -116,10 +116,10 @@ function getFilteredNav(businessType?: 'salon' | 'nails'): NavItem[] {
   if (!businessType) return NAV // Show all if no business type set
   
   if (businessType === 'nails') {
-    // For nails business, hide salon-specific items and show nails-specific items
+    // For nails business, hide all salon-specific operations
     return NAV.filter(item => {
-      // Hide salon-specific operations
-      if (item.href === '/bookings' || item.href === '/staff' || item.href === '/staff-management') return false
+      // Hide salon-specific operations section
+      if (item.group === 'Operations') return false
       return true
     })
   }
