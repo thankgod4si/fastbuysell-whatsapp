@@ -8,6 +8,7 @@ export default function SignupPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [businessType, setBusinessType] = useState<'salon' | 'nails' | ''>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
@@ -15,13 +16,14 @@ export default function SignupPage() {
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
+    if (!businessType) { setError('Please select a business type'); return }
     setLoading(true)
     setError('')
 
     const { error } = await supabaseBrowser.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: { data: { full_name: name, business_type: businessType } },
     })
 
     if (error) {
@@ -131,6 +133,30 @@ export default function SignupPage() {
                   className="w-full bg-[#F2F2F7] border-0 rounded-xl px-4 py-3 text-[#1C1C1E] text-sm placeholder-[#C7C7CC] outline-none focus:ring-2 transition-all"
                   style={{ '--tw-ring-color': '#25D36640' } as React.CSSProperties}
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#6C6C70] mb-3">What type of business do you run?</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBusinessType('salon')}
+                    className={`p-4 rounded-2xl border-2 transition-all ${businessType === 'salon' ? 'border-[#007AFF] bg-[#007AFF]/10' : 'border-[#E5E5EA] hover:border-[#007AFF]/30'}`}
+                  >
+                    <div className="text-2xl mb-2">💇‍♀️</div>
+                    <p className="font-semibold text-sm text-[#1C1C1E]">Salon</p>
+                    <p className="text-xs text-[#8E8E93] mt-1">Hair services, appointments, stylists</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBusinessType('nails')}
+                    className={`p-4 rounded-2xl border-2 transition-all ${businessType === 'nails' ? 'border-[#007AFF] bg-[#007AFF]/10' : 'border-[#E5E5EA] hover:border-[#007AFF]/30'}`}
+                  >
+                    <div className="text-2xl mb-2">💅</div>
+                    <p className="font-semibold text-sm text-[#1C1C1E]">Press-On Nails</p>
+                    <p className="text-xs text-[#8E8E93] mt-1">Custom orders, shipping, e-commerce</p>
+                  </button>
+                </div>
               </div>
 
               {error && (

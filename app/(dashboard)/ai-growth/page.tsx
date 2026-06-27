@@ -23,18 +23,18 @@ export default function AIGrowthPage() {
     {
       id: '1',
       role: 'ai',
-      content: "Hello! I'm your AI Growth Manager. I've analyzed your salon's performance data and I'm here to help you increase revenue and optimize operations. Here's what I've noticed:",
+      content: "Hello! I'm your AI Growth Manager. I've analyzed your press-on nails business data and I'm here to help you increase revenue and optimize operations. Here's what I've noticed:",
       timestamp: new Date(Date.now() - 7200000),
       metrics: [
-        { label: 'Monthly Revenue', value: '₦720,000', change: '+23%', positive: true },
-        { label: 'Repeat Rate', value: '68%', change: '+5%', positive: true },
-        { label: 'Avg LTV', value: '₦285,000', change: '+12%', positive: true }
+        { label: 'Monthly Revenue', value: '₦420,000', change: '+23%', positive: true },
+        { label: 'Avg Order Value', value: '₦24,000', change: '+12%', positive: true },
+        { label: 'Repeat Rate', value: '68%', change: '+5%', positive: true }
       ]
     },
     {
       id: '2',
       role: 'ai',
-      content: "Based on your data, I've identified 3 key opportunities to increase revenue by 25% this month. Would you like me to explain them?",
+      content: "Based on your data, I've identified 3 key opportunities to increase revenue by 35% this month. Would you like me to explain them?",
       timestamp: new Date(Date.now() - 7100000)
     },
     {
@@ -46,11 +46,11 @@ export default function AIGrowthPage() {
     {
       id: '4',
       role: 'ai',
-      content: "Here are the 3 key opportunities I've identified:\n\n**1. Product Bundle Upsell**\nCustomers who receive Wig Installs are 72% more likely to purchase Edge Control. By bundling these automatically, you could add ₦45,000/month in revenue.\n\n**2. Reactivation Campaign**\nYou have 23 at-risk customers who haven't visited in 60+ days. A targeted 15% comeback offer could recover ₦180,000 in lost revenue.\n\n**3. Premium Service Tier**\nYour top 20% of customers spend 3x more. Launching a VIP membership with priority booking and exclusive services could generate ₦300,000/month.\n\nWhich opportunity would you like me to help you implement?",
+      content: "Here are the 3 key opportunities I've identified:\n\n**1. Bundle Edge Glue with Press-On Kits**\nCustomers who buy press-on nails are 65% more likely to purchase edge glue. By bundling these automatically, you could add ₦80,000/month in revenue.\n\n**2. Content Strategy Optimization**\nYour Red Chrome videos are performing 3x better than Pink Marble. I recommend creating 5 more Red Chrome-style videos this week to capitalize on the winning hook.\n\n**3. Personalized Style Recommendations**\nYou have 23 customers with style profiles. Sending personalized recommendations based on their favorite shapes and colours could recover ₦120,000 in lost revenue.\n\nWhich opportunity would you like me to help you implement?",
       timestamp: new Date(Date.now() - 6900000),
       metrics: [
-        { label: 'Potential Revenue', value: '₦525,000', change: '+73%', positive: true },
-        { label: 'At-Risk Customers', value: '23', change: '-12%', positive: false }
+        { label: 'Potential Revenue', value: '₦320,000', change: '+76%', positive: true },
+        { label: 'Best Video', value: 'Red Chrome', change: '3x CTR', positive: true }
       ]
     }
   ])

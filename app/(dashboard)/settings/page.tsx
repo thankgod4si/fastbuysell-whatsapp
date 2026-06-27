@@ -18,6 +18,7 @@ interface Profile {
   subscription_status: string
   trial_sends_remaining: number
   messages_sent_total: number
+  business_type?: 'salon' | 'nails'
 }
 
 interface WaNumber {

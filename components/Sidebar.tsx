@@ -80,6 +80,11 @@ const NAV: NavItem[] = [
   { group: 'Operations', href: '/staff-management', label: 'Staff Management', icon: ICON.shield,  color: '#007AFF' },
   { group: 'Operations', href: '/inventory',  label: 'Product Inventory', icon: ICON.package,    color: '#007AFF' },
   { group: 'Operations', href: '/reports',    label: 'Customer Reports',  icon: ICON.report,     color: '#DC2626' },
+  // ── Nails Business ─────────────────────────────────────────────────────────────────
+  { group: 'Nails',      href: '/orders',     label: 'Orders',            icon: ICON.package,    color: '#007AFF' },
+  { group: 'Nails',      href: '/nails-crm',  label: 'Customer Style Profiles', icon: ICON.users,  color: '#007AFF' },
+  { group: 'Nails',      href: '/content-library', label: 'Content Library', icon: ICON.sparkles,  color: '#FF9500' },
+  { group: 'Nails',      href: '/nails-catalog', label: 'Nail Catalog',    icon: ICON.templates, color: '#007AFF' },
   // ── AI & Automation ────────────────────────────────────────────────────────────────
   { group: 'AI',         href: '/recommendations', label: 'Recommendations', icon: ICON.sparkles,  color: '#FF9500' },
   { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#007AFF' },
@@ -106,6 +111,31 @@ const NAV: NavItem[] = [
 
 const NAV_GROUPS = Array.from(new Set(NAV.map(i => i.group).filter(Boolean))) as string[]
 
+// Filter navigation based on business type
+function getFilteredNav(businessType?: 'salon' | 'nails'): NavItem[] {
+  if (!businessType) return NAV // Show all if no business type set
+  
+  if (businessType === 'nails') {
+    // For nails business, hide salon-specific items and show nails-specific items
+    return NAV.filter(item => {
+      // Hide salon-specific operations
+      if (item.href === '/bookings' || item.href === '/staff' || item.href === '/staff-management') return false
+      return true
+    })
+  }
+  
+  // For salon business, hide nails-specific items
+  if (businessType === 'salon') {
+    return NAV.filter(item => {
+      // Hide nails-specific section
+      if (item.group === 'Nails') return false
+      return true
+    })
+  }
+  
+  return NAV
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -118,6 +148,7 @@ interface Profile {
   trial_sends_remaining: number
   is_admin: boolean
   credits: number
+  business_type?: 'salon' | 'nails'
 }
 
 interface SidebarProps {
@@ -179,7 +210,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       setUserEmail(user.email ?? '')
       const { data } = await supabaseBrowser
         .from('profiles')
-        .select('full_name, subscription_status, trial_sends_remaining, is_admin')
+        .select('full_name, subscription_status, trial_sends_remaining, is_admin, business_type')
         .eq('id', user.id)
         .single()
       if (data) {
@@ -293,18 +324,27 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className={`flex-1 py-3 overflow-y-auto space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
-        {NAV.filter(i => !i.group).map(item => (
-          <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-        ))}
+        {(() => {
+          const filteredNav = getFilteredNav(profile?.business_type)
+          const filteredGroups = Array.from(new Set(filteredNav.map(i => i.group).filter(Boolean))) as string[]
+          
+          return (
+            <>
+              {filteredNav.filter(i => !i.group).map(item => (
+                <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+              ))}
 
-        {NAV_GROUPS.map(group => (
-          <div key={group} className="pt-4">
-            <SectionLabel collapsed={collapsed}>{group}</SectionLabel>
-            {NAV.filter(i => i.group === group).map(item => (
-              <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-            ))}
-          </div>
-        ))}
+              {filteredGroups.map(group => (
+                <div key={group} className="pt-4">
+                  <SectionLabel collapsed={collapsed}>{group}</SectionLabel>
+                  {filteredNav.filter(i => i.group === group).map(item => (
+                    <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+                  ))}
+                </div>
+              ))}
+            </>
+          )
+        })()}
 
         {profile?.is_admin && (
           <div className="pt-4">

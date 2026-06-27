@@ -19,11 +19,12 @@ function generateMockBookingConversation(contactId: string): Message[] {
   const now = new Date()
   const baseTime = now.getTime()
   
+  // Nails business conversation flow
   return [
     {
       id: '1',
       direction: 'inbound',
-      content: "Hi, I'd like to book an appointment for a wig installation",
+      content: "Hi",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 300000).toISOString()
@@ -31,7 +32,7 @@ function generateMockBookingConversation(contactId: string): Message[] {
     {
       id: '2',
       direction: 'outbound',
-      content: "Hello! 👋 I'd be happy to help you book a wig installation. Let me check our availability.\n\nI see we have openings this week:\n- Tuesday 2pm with Blessing\n- Wednesday 10am with Anita\n- Thursday 4pm with Chisom\n\nWhich time works best for you?",
+      content: "👋 Hi, welcome to Pressed by VPH.\n\nI'd love to create your custom press-on nails 💅\n\nChoose an option:\n\n1️⃣ Shop Ready-Made Sets\n2️⃣ Create My Custom Set\n3️⃣ How to Measure My Nails\n4️⃣ Delivery & Pricing\n5️⃣ Speak to a Nail Artist",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 240000).toISOString(),
@@ -40,7 +41,7 @@ function generateMockBookingConversation(contactId: string): Message[] {
     {
       id: '3',
       direction: 'inbound',
-      content: "Tuesday 2pm works for me!",
+      content: "2",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 180000).toISOString()
@@ -48,17 +49,16 @@ function generateMockBookingConversation(contactId: string): Message[] {
     {
       id: '4',
       direction: 'outbound',
-      content: "Perfect! ✅ I've booked you for Tuesday at 2pm with Blessing.\n\n**Booking Details:**\n- Service: Wig Installation\n- Stylist: Blessing\n- Date: Tuesday, June 24th\n- Time: 2:00 PM\n- Price: ₦40,000\n\nWould you like me to add any products to your appointment? We have Edge Control and Mousse available.",
+      content: "✨ Let's create your dream nails.\n\n📌 Upload your inspiration picture.\n\n📌 What length?\n• Short\n• Medium\n• Long\n• XL\n\n📌 What's the occasion?\nBirthday\nWedding\nVacation\nEveryday\n\n📌 Preferred colour?\n\n📌 Your delivery state?",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 120000).toISOString(),
-      isAI: true,
-      bookingStatus: 'confirmed'
+      isAI: true
     },
     {
       id: '5',
       direction: 'inbound',
-      content: "Yes, please add the Edge Control",
+      content: "Medium length, wedding, nude colour, Lagos",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 60000).toISOString()
@@ -66,12 +66,29 @@ function generateMockBookingConversation(contactId: string): Message[] {
     {
       id: '6',
       direction: 'outbound',
-      content: "Great! I've added Edge Control to your booking.\n\n**Updated Total:** ₦43,500\n\nYour appointment is confirmed! You'll receive a reminder 24 hours before your appointment. See you on Tuesday! 💇‍♀️",
+      content: "Perfect!\n\nWe'll prepare your quote.\n\nAverage price:\n₦18,000-₦30,000 depending on design.\n\nContinue to payment?",
       msg_type: 'text',
       status: 'read',
       sent_at: new Date(baseTime - 30000).toISOString(),
+      isAI: true
+    },
+    {
+      id: '7',
+      direction: 'inbound',
+      content: "Yes",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 15000).toISOString()
+    },
+    {
+      id: '8',
+      direction: 'outbound',
+      content: "Order Summary\n\nDesign: Custom Medium Nude\nLength: Medium\nColour: Nude\n\nTotal: ₦24,000\n\nPay here 👇\n[Payment Link]",
+      msg_type: 'text',
+      status: 'read',
+      sent_at: new Date(baseTime - 5000).toISOString(),
       isAI: true,
-      bookingStatus: 'confirmed'
+      bookingStatus: 'pending'
     }
   ]
 }
