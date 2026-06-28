@@ -16,12 +16,19 @@ export async function POST(request: Request) {
 
   try {
     const payload = await request.json()
-    console.log('[webhook/pending] Received payload:', JSON.stringify(payload).slice(0, 500))
+    console.log('[webhook/pending] Full payload:', JSON.stringify(payload))
 
-    // Supabase webhook payload structure
-    const record = payload.record
+    // Supabase webhook payload structure - handle both formats
+    let record = payload.record
+    if (!record && payload.data && payload.data.record) {
+      record = payload.data.record
+    }
+    if (!record && payload.data && Array.isArray(payload.data) && payload.data[0]) {
+      record = payload.data[0]
+    }
+
     if (!record) {
-      console.error('[webhook/pending] No record in payload')
+      console.error('[webhook/pending] No record in payload, full payload:', JSON.stringify(payload))
       return NextResponse.json({ error: 'No record in payload' }, { status: 400 })
     }
 
