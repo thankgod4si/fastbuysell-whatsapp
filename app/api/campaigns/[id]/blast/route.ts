@@ -31,14 +31,22 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
       .single()
     
     if (profile?.email_from) {
-      fromAddress = profile.email_from
-      if (profile?.email_sender_name) {
-        const emailMatch = fromAddress.match(/<(.+)>/)
-        if (emailMatch) {
-          fromAddress = `${profile.email_sender_name} <${emailMatch[1]}>`
-        } else {
-          fromAddress = `${profile.email_sender_name} <${fromAddress}>`
+      // Check if domain is verified (trysofi.co is verified by default)
+      const isVerifiedDomain = profile.email_from.includes('trysofi.co') || 
+                              profile.email_from.includes(process.env.RESEND_VERIFIED_DOMAIN || '')
+      
+      if (isVerifiedDomain) {
+        fromAddress = profile.email_from
+        if (profile?.email_sender_name) {
+          const emailMatch = fromAddress.match(/<(.+)>/)
+          if (emailMatch) {
+            fromAddress = `${profile.email_sender_name} <${emailMatch[1]}>`
+          } else {
+            fromAddress = `${profile.email_sender_name} <${fromAddress}>`
+          }
         }
+      } else {
+        console.log(`[email blast] Domain not verified for ${profile.email_from}, using platform default`)
       }
     }
   }

@@ -27,13 +27,22 @@ async function getUserEmailConfig(): Promise<UserEmailConfig> {
     
     // Build from address with sender name if configured
     let from = profile?.email_from || undefined
-    if (profile?.email_sender_name && from) {
-      // Parse existing from address and add sender name
-      const emailMatch = from.match(/<(.+)>/)
-      if (emailMatch) {
-        from = `${profile.email_sender_name} <${emailMatch[1]}>`
-      } else {
-        from = `${profile.email_sender_name} <${from}>`
+    if (profile?.email_from) {
+      // Check if domain is verified (trysofi.co is verified by default)
+      const isVerifiedDomain = profile.email_from.includes('trysofi.co') || 
+                              profile.email_from.includes(process.env.RESEND_VERIFIED_DOMAIN || '')
+      
+      if (!isVerifiedDomain) {
+        console.log(`[email] Domain not verified for ${profile.email_from}, using platform default`)
+        from = undefined // Will use platform default
+      } else if (profile?.email_sender_name) {
+        // Parse existing from address and add sender name
+        const emailMatch = from.match(/<(.+)>/)
+        if (emailMatch) {
+          from = `${profile.email_sender_name} <${emailMatch[1]}>`
+        } else {
+          from = `${profile.email_sender_name} <${from}>`
+        }
       }
     }
     
