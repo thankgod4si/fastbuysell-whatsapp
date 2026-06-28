@@ -21,12 +21,25 @@ async function getUserEmailConfig(): Promise<UserEmailConfig> {
     if (!user) return {}
     const { data: profile } = await supabase
       .from('profiles')
-      .select('resend_api_key, email_from, reply_to_email')
+      .select('resend_api_key, email_from, reply_to_email, email_sender_name')
       .eq('id', user.id)
       .single()
+    
+    // Build from address with sender name if configured
+    let from = profile?.email_from || undefined
+    if (profile?.email_sender_name && from) {
+      // Parse existing from address and add sender name
+      const emailMatch = from.match(/<(.+)>/)
+      if (emailMatch) {
+        from = `${profile.email_sender_name} <${emailMatch[1]}>`
+      } else {
+        from = `${profile.email_sender_name} <${from}>`
+      }
+    }
+    
     return {
       apiKey: profile?.resend_api_key || undefined,
-      from: profile?.email_from || undefined,
+      from,
       replyTo: profile?.reply_to_email || undefined,
       userId: user.id,
     }

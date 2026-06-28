@@ -21,6 +21,28 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     }
   }
 
+  // Get user email config for sender name
+  let fromAddress = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@trysofi.co>'
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('email_from, email_sender_name')
+      .eq('id', user.id)
+      .single()
+    
+    if (profile?.email_from) {
+      fromAddress = profile.email_from
+      if (profile?.email_sender_name) {
+        const emailMatch = fromAddress.match(/<(.+)>/)
+        if (emailMatch) {
+          fromAddress = `${profile.email_sender_name} <${emailMatch[1]}>`
+        } else {
+          fromAddress = `${profile.email_sender_name} <${fromAddress}>`
+        }
+      }
+    }
+  }
+
   const { data: campaign } = await supabase
     .from('campaigns')
     .select('*')
@@ -48,12 +70,14 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   const failed: string[] = []
 
   for (const contact of toSend) {
-    const { error } = await sendCampaignEmail({
+    console.log(`[email blast] Sending to ${contact.email}`)
+    const { data, error } = await sendCampaignEmail({
       to: contact.email,
       name: contact.name,
       subject: campaign.subject,
       body: campaign.body,
       replyTo: campaign.reply_to,
+      from: fromAddress,
     })
 
     if (!error) {
@@ -62,10 +86,12 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
         .update({ status: 'sent', sent_at: new Date().toISOString() })
         .eq('id', contact.id)
       sent++
+      console.log(`[email blast] Successfully sent to ${contact.email}`)
     } else {
+      console.error(`[email blast] Failed to send to ${contact.email}:`, error)
       await supabase
         .from('campaign_contacts')
-        .update({ status: 'failed' })
+        .update({ status: 'failed', failure_reason: JSON.stringify(error) })
         .eq('id', contact.id)
       failed.push(contact.email)
     }
