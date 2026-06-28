@@ -1,6 +1,6 @@
 import { Resend } from 'resend'
 
-const PLATFORM_FROM = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@trysofi.co>'
+const PLATFORM_FROM = process.env.EMAIL_FROM ?? 'hello@trysofi.co'
 
 function client(apiKey?: string) {
   return new Resend(apiKey ?? process.env.RESEND_API_KEY!)
@@ -58,6 +58,9 @@ export async function sendLeadEmail(data: LeadEmailData) {
     ...(data.replyTo ? { replyTo: data.replyTo } : {}),
     subject: `Your vehicle enquiry – ${data.carYear} ${data.carMake} ${data.carModel}`,
     text: buildLeadText(data),
+    headers: {
+      'List-Unsubscribe': `<mailto:unsubscribe@trysofi.co?subject=Unsubscribe>`,
+    },
   })
 }
 
@@ -89,5 +92,8 @@ export async function sendCampaignEmail({ to, name, subject, body, replyTo, apiK
     replyTo,
     subject,
     text: buildCampaignText(name, body),
+    headers: {
+      'List-Unsubscribe': `<mailto:unsubscribe@trysofi.co?subject=Unsubscribe>`,
+    },
   })
 }

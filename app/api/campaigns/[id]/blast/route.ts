@@ -22,7 +22,7 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
   }
 
   // Get user email config for sender name
-  let fromAddress = process.env.EMAIL_FROM ?? 'Fast Buy & Sell <hello@trysofi.co>'
+  let fromAddress = process.env.EMAIL_FROM ?? 'hello@trysofi.co'
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
@@ -36,17 +36,18 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
                               profile.email_from.includes(process.env.RESEND_VERIFIED_DOMAIN || '')
       
       if (isVerifiedDomain) {
-        fromAddress = profile.email_from
+        // Use user's email if domain is verified
         if (profile?.email_sender_name) {
-          const emailMatch = fromAddress.match(/<(.+)>/)
-          if (emailMatch) {
-            fromAddress = `${profile.email_sender_name} <${emailMatch[1]}>`
-          } else {
-            fromAddress = `${profile.email_sender_name} <${fromAddress}>`
-          }
+          fromAddress = `${profile.email_sender_name} <${profile.email_from}>`
+        } else {
+          fromAddress = profile.email_from
         }
       } else {
         console.log(`[email blast] Domain not verified for ${profile.email_from}, using platform default`)
+        // Use platform default with custom sender name if provided
+        if (profile?.email_sender_name) {
+          fromAddress = `${profile.email_sender_name} <hello@trysofi.co>`
+        }
       }
     }
   }

@@ -34,15 +34,15 @@ async function getUserEmailConfig(): Promise<UserEmailConfig> {
       
       if (!isVerifiedDomain) {
         console.log(`[email] Domain not verified for ${profile.email_from}, using platform default`)
-        from = undefined // Will use platform default
-      } else if (profile?.email_sender_name) {
-        // Parse existing from address and add sender name
-        const emailMatch = from.match(/<(.+)>/)
-        if (emailMatch) {
-          from = `${profile.email_sender_name} <${emailMatch[1]}>`
+        // Use platform default with custom sender name if provided
+        if (profile?.email_sender_name) {
+          from = `${profile.email_sender_name} <hello@trysofi.co>`
         } else {
-          from = `${profile.email_sender_name} <${from}>`
+          from = undefined // Will use platform default
         }
+      } else if (profile?.email_sender_name) {
+        // Use user's verified email with custom sender name
+        from = `${profile.email_sender_name} <${profile.email_from}>`
       }
     }
     
