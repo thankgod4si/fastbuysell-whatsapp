@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET(request: Request) {
@@ -8,15 +9,21 @@ export async function GET(request: Request) {
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // Use service role key to bypass RLS on server-side
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
   const url = new URL(request.url)
   const channel = url.searchParams.get('channel')
   const contactId = url.searchParams.get('contactId')
   const leadId = url.searchParams.get('leadId')
 
-  // Temporarily remove user_id filter to debug
-  let query = authClient
+  let query = supabase
     .from('message_logs')
     .select('*')
+    .eq('user_id', user.id)
     .order('sent_at', { ascending: false })
     .limit(200)
 
@@ -30,13 +37,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  console.log('[logs] Total messages found:', data?.length)
-  console.log('[logs] User ID:', user.id)
-  console.log('[logs] Sample message:', data?.[0])
-  
-  // Filter by user_id after fetching to debug
-  const userMessages = data?.filter(m => m.user_id === user.id) || []
-  console.log('[logs] Messages for user:', userMessages.length)
-
-  return NextResponse.json(userMessages)
+  return NextResponse.json(data ?? [])
 }

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
+import { createClient } from '@supabase/supabase-js'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET() {
@@ -8,11 +9,17 @@ export async function GET() {
   const { data: { user } } = await authClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get all messages ordered by recipient then sent_at DESC
-  // Temporarily remove user_id filter to debug
-  const { data, error } = await authClient
+  // Use service role key to bypass RLS on server-side
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+
+  // Get all messages for this user, ordered by recipient then sent_at DESC
+  const { data, error } = await supabase
     .from('message_logs')
     .select('*, contacts(id, wa_name, name, status)')
+    .eq('user_id', user.id)
     .order('recipient', { ascending: true })
     .order('sent_at', { ascending: false })
     .limit(500)
@@ -22,17 +29,9 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
   
-  console.log('[inbox] Total messages found:', data?.length)
-  console.log('[inbox] User ID:', user.id)
-  console.log('[inbox] Sample message:', data?.[0])
-  
-  // Filter by user_id after fetching to debug
-  const userMessages = data?.filter(m => m.user_id === user.id) || []
-  console.log('[inbox] Messages for user:', userMessages.length)
-  
   // Get latest message per recipient (WhatsApp-style bubbling)
   const latestByRecipient = new Map()
-  for (const msg of userMessages) {
+  for (const msg of data || []) {
     const key = msg.recipient
     if (!latestByRecipient.has(key)) {
       latestByRecipient.set(key, msg)

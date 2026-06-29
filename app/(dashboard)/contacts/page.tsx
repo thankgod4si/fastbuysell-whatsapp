@@ -283,6 +283,10 @@ export default function ContactsPage() {
   const [testPhone,   setTestPhone]   = useState('')
   const [testing,     setTesting]     = useState(false)
   const [showAdd,     setShowAdd]     = useState(false)
+  const [showQueue,   setShowQueue]   = useState(false)
+  const [queueContacts, setQueueContacts] = useState<any[]>([])
+  const [queueLoading, setQueueLoading] = useState(false)
+  const [sendingQueue, setSendingQueue] = useState(false)
   const [searchQ,     setSearchQ]     = useState('')
   const [reply,       setReply]       = useState('')
   const [sending,     setSending]     = useState(false)
@@ -292,6 +296,24 @@ export default function ContactsPage() {
   const bottomRef                     = useRef<HTMLDivElement>(null)
 
   const detected = parseNumbers(raw)
+
+  const loadQueue = useCallback(async () => {
+    setQueueLoading(true)
+    try {
+      const res = await fetch('/api/queue')
+      const data = await res.json()
+      setQueueContacts(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error('Failed to load queue:', e)
+      setQueueContacts([])
+    } finally {
+      setQueueLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (showQueue) loadQueue()
+  }, [showQueue, loadQueue])
 
   const load = useCallback(async () => {
     const res = await fetch('/api/contacts')
@@ -455,7 +477,11 @@ export default function ContactsPage() {
             </div>
           </div>
           <div className="flex gap-3 text-xs">
-            {[{l:'Queue',v:stats.pending,c:'#FF9500'},{l:'Sent',v:stats.sent,c:'#007AFF'},{l:'Replied',v:stats.replied,c:'#34C759'}].map(s=>(
+            <button onClick={() => setShowQueue(true)} className="rounded-xl px-3 py-1.5 text-center transition-colors hover:opacity-80" style={{background:'#FF950012'}}>
+              <span className="font-black text-base tabular-nums" style={{color:'#FF9500'}}>{stats.pending}</span>
+              <span className="ml-1.5 font-medium" style={{color:'#FF9500'}}>Queue</span>
+            </button>
+            {[{l:'Sent',v:stats.sent,c:'#007AFF'},{l:'Replied',v:stats.replied,c:'#34C759'}].map(s=>(
               <div key={s.l} className="rounded-xl px-3 py-1.5 text-center" style={{background:`${s.c}12`}}>
                 <span className="font-black text-base tabular-nums" style={{color:s.c}}>{s.v}</span>
                 <span className="ml-1.5 font-medium" style={{color:s.c}}>{s.l}</span>
@@ -693,6 +719,91 @@ export default function ContactsPage() {
           lead={activeLead}
           onClose={() => setShowProfile(false)}
         />
+      )}
+
+      {/* Queue panel */}
+      {showQueue && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/30 backdrop-blur-sm">
+          <div className="w-full max-w-md h-full bg-white flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]">
+              <div>
+                <h2 className="text-[#1C1C1E] font-bold text-lg">Message Queue</h2>
+                <p className="text-[#8E8E93] text-sm">{queueContacts.length} contacts pending</p>
+              </div>
+              <button onClick={() => setShowQueue(false)} className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#F2F2F7] text-[#8E8E93] hover:text-[#1C1C1E]">
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {queueLoading ? (
+                <div className="space-y-3">
+                  {[1,2,3].map(i => <div key={i} className="h-20 bg-[#F2F2F7] rounded-2xl animate-pulse" />)}
+                </div>
+              ) : queueContacts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full py-12 text-center">
+                  <span className="text-4xl mb-3">📭</span>
+                  <p className="text-[#1C1C1E] font-semibold text-sm">Queue is empty</p>
+                  <p className="text-[#8E8E93] text-xs mt-1">No pending messages</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {queueContacts.map((qc: any) => (
+                    <div key={qc.id} className="rounded-2xl border border-[#F2F2F7] p-4 bg-white">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center text-sm font-bold text-gray-600 shrink-0">
+                          {(qc.wa_name ?? qc.name ?? qc.phone).charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[#1C1C1E] text-sm font-semibold truncate">{qc.wa_name ?? qc.name ?? qc.phone}</p>
+                          <p className="text-[#8E8E93] text-xs font-mono mt-0.5">{qc.phone}</p>
+                          <p className="text-[#8E8E93] text-xs mt-2 truncate">{qc.message_content ?? '(no content)'}</p>
+                          <p className="text-[#C7C7CC] text-[10px] mt-1">
+                            Queued {new Date(qc.queued_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => sendOne(qc)}
+                        disabled={sendingId === qc.id}
+                        className="mt-3 w-full py-2 rounded-xl text-xs font-bold text-white transition-all disabled:opacity-50"
+                        style={{background:'#25D366',boxShadow:'0 2px 6px rgba(37,211,102,0.3)'}}
+                      >
+                        {sendingId === qc.id ? 'Sending…' : 'Send Now'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {queueContacts.length > 0 && (
+              <div className="px-4 py-4 border-t border-black/[0.06]">
+                <button
+                  onClick={async () => {
+                    setSendingQueue(true)
+                    try {
+                      for (const qc of queueContacts) {
+                        await sendOne(qc)
+                      }
+                      notify('All queued messages sent', true)
+                      loadQueue()
+                    } catch (e) {
+                      notify('Failed to send some messages', false)
+                    } finally {
+                      setSendingQueue(false)
+                    }
+                  }}
+                  disabled={sendingQueue}
+                  className="w-full py-3 rounded-2xl text-sm font-bold text-white transition-all disabled:opacity-50"
+                  style={{background:'#25D366',boxShadow:'0 4px 12px rgba(37,211,102,0.4)'}}
+                >
+                  {sendingQueue ? 'Sending All…' : `Send All Now (${queueContacts.length})`}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

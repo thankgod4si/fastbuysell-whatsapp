@@ -10,7 +10,8 @@ const CHANNEL_META: Record<MessageLog['channel'], { icon: string; label: string;
   social:   { icon: '🗨️', label: 'Social',   color: '#34C759' },
 }
 
-const STATUS_META: Record<MessageLog['status'], { label: string; color: string; dot: string }> = {
+const STATUS_META: Record<MessageLog['status'] | 'pending', { label: string; color: string; dot: string }> = {
+  pending:   { label: 'Pending',   color: '#FF9500', dot: '#FF9500' },
   sent:      { label: 'Sent',      color: '#8E8E93', dot: '#8E8E93' },
   delivered: { label: 'Delivered', color: '#007AFF', dot: '#007AFF' },
   read:      { label: 'Read',      color: '#34C759', dot: '#34C759' },
@@ -19,7 +20,8 @@ const STATUS_META: Record<MessageLog['status'], { label: string; color: string; 
   bounced:   { label: 'Bounced',   color: '#FF3B30', dot: '#FF3B30' },
 }
 
-function timeAgo(dateStr: string) {
+function timeAgo(dateStr: string | null | undefined) {
+  if (!dateStr) return '—'
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
   if (mins < 1) return 'just now'
@@ -33,7 +35,10 @@ function timeAgo(dateStr: string) {
 function groupByDate(logs: MessageLog[]): { label: string; items: MessageLog[] }[] {
   const map = new Map<string, MessageLog[]>()
   for (const log of logs) {
-    const d = new Date(log.sent_at)
+    // Use created_at as fallback if sent_at is null
+    const dateField = log.sent_at || log.created_at
+    if (!dateField) continue
+    const d = new Date(dateField)
     const today = new Date()
     const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
     let label: string
@@ -47,7 +52,7 @@ function groupByDate(logs: MessageLog[]): { label: string; items: MessageLog[] }
 }
 
 type ChannelFilter = MessageLog['channel'] | 'all'
-type StatusFilter = MessageLog['status'] | 'all'
+type StatusFilter = MessageLog['status'] | 'all' | 'pending'
 
 export default function LogsPage() {
   const [logs, setLogs] = useState<MessageLog[]>([])
@@ -125,11 +130,11 @@ export default function LogsPage() {
 
         {/* Status filter */}
         <div className="flex bg-white rounded-xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-          {(['all', 'delivered', 'read', 'failed'] as const).map(s => (
+          {(['all', 'pending', 'delivered', 'read', 'failed'] as const).map(s => (
             <button key={s} onClick={() => setStatusFilter(s as StatusFilter)}
               className={`px-3.5 py-2.5 text-xs font-semibold transition-colors ${statusFilter === s ? 'text-white' : 'text-[#8E8E93] hover:text-[#1C1C1E]'}`}
-              style={statusFilter === s ? { background: s === 'all' ? '#5856D6' : STATUS_META[s as MessageLog['status']].color } : {}}>
-              {s === 'all' ? 'All statuses' : STATUS_META[s as MessageLog['status']].label}
+              style={statusFilter === s ? { background: s === 'all' ? '#5856D6' : STATUS_META[s].color } : {}}>
+              {s === 'all' ? 'All statuses' : STATUS_META[s].label}
             </button>
           ))}
         </div>
@@ -162,8 +167,8 @@ export default function LogsPage() {
               {/* Log entries */}
               <div className="bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 {items.map((log, idx) => {
-                  const ch = CHANNEL_META[log.channel]
-                  const st = STATUS_META[log.status]
+                  const ch = CHANNEL_META[log.channel] || { icon: '📨', label: 'Unknown', color: '#8E8E93' }
+                  const st = STATUS_META[log.status as keyof typeof STATUS_META] || { label: log.status, color: '#8E8E93', dot: '#8E8E93' }
                   return (
                     <div key={log.id} className={`flex items-center gap-4 px-5 py-4 ${idx !== items.length - 1 ? 'border-b border-black/[0.04]' : ''}`}>
                       {/* Timeline dot + channel icon */}
