@@ -1285,7 +1285,7 @@ export async function POST(request: Request) {
         await saveInboundMessage({
           contactId: c.id,
           phone: from,
-          content: caption || `Sent a ${message.type}`,
+          content: caption || null, // Media messages have no text content
           msgType: message.type as any,
           userId: c.user_id,
           mediaData: mediaData

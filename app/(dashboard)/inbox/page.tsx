@@ -464,7 +464,16 @@ export default function InboxPage() {
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <ChannelLogo channel={c.channel} size={12} />
-                      <p className="text-[#8E8E93] text-xs truncate">{c.content ?? '(media)'}</p>
+                      <p className="text-[#8E8E93] text-xs truncate">
+                        {c.content 
+                          ? c.content 
+                          : c.msg_type === 'image' ? '📷 Image' 
+                          : c.msg_type === 'video' ? '🎥 Video'
+                          : c.msg_type === 'audio' ? '🎵 Audio'
+                          : c.msg_type === 'document' ? '📄 Document'
+                          : c.msg_type === 'template' ? '📨 Outreach sent'
+                          : '(media)'}
+                      </p>
                     </div>
                   </div>
                   {isInbound && (
@@ -527,29 +536,31 @@ export default function InboxPage() {
                               { background: 'white', border: '1px solid rgba(0,0,0,0.06)' }
                             }>
                             {/* Media rendering */}
-                            {m.media_url && m.media_type === 'image' && (
+                            {m.msg_type === 'image' && m.media_url ? (
                               <img 
                                 src={m.media_url} 
                                 alt={m.caption || 'Image'} 
                                 className="rounded-lg mb-2 max-w-full cursor-pointer hover:opacity-90"
-                                onClick={() => m.media_url && window.open(m.media_url, '_blank')}
+                                onClick={() => window.open(m.media_url!, '_blank')}
                               />
-                            )}
-                            {m.media_url && m.media_type === 'video' && (
+                            ) : m.msg_type === 'image' && !m.media_url ? (
+                              <span className="text-sm">📷 Image loading...</span>
+                            ) : null}
+                            {m.msg_type === 'video' && m.media_url && (
                               <video 
                                 src={m.media_url} 
                                 controls 
                                 className="rounded-lg mb-2 max-w-full"
                               />
                             )}
-                            {m.media_url && m.media_type === 'audio' && (
+                            {m.msg_type === 'audio' && m.media_url && (
                               <audio 
                                 src={m.media_url} 
                                 controls 
                                 className="mb-2 w-full"
                               />
                             )}
-                            {m.media_url && m.media_type === 'document' && (
+                            {m.msg_type === 'document' && m.media_url && (
                               <a 
                                 href={m.media_url} 
                                 target="_blank" 
@@ -566,9 +577,12 @@ export default function InboxPage() {
                                 <span className="text-xs">Download file</span>
                               </a>
                             )}
-                            <p style={{ color: isForm ? '#34C759' : (ai ? 'white' : '#1C1C1E') }} className="whitespace-pre-wrap">
-                              {isForm && '✅ '}{bubbleLabel(m)}
-                            </p>
+                            {/* Only show text content if not a media message or if media failed to load */}
+                            {!m.media_url && m.content && (
+                              <p style={{ color: isForm ? '#34C759' : (ai ? 'white' : '#1C1C1E') }} className="whitespace-pre-wrap">
+                                {isForm && '✅ '}{bubbleLabel(m)}
+                              </p>
+                            )}
                             {m.caption && !m.media_url && (
                               <p className="text-xs mt-1 opacity-70">{m.caption}</p>
                             )}
