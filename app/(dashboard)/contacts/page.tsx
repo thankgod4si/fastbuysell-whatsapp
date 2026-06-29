@@ -15,84 +15,6 @@ interface Message {
 
 type ToastItem = { id: number; msg: string; ok: boolean }
 
-function generateMockBookingConversation(contactId: string): Message[] {
-  const now = new Date()
-  const baseTime = now.getTime()
-  
-  // Nails business conversation flow
-  return [
-    {
-      id: '1',
-      direction: 'inbound',
-      content: "Hi",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 300000).toISOString()
-    },
-    {
-      id: '2',
-      direction: 'outbound',
-      content: "👋 Hi, welcome to Pressed by VPH.\n\nI'd love to create your custom press-on nails 💅\n\nChoose an option:\n\n1️⃣ Shop Ready-Made Sets\n2️⃣ Create My Custom Set\n3️⃣ How to Measure My Nails\n4️⃣ Delivery & Pricing\n5️⃣ Speak to a Nail Artist",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 240000).toISOString(),
-      isAI: true
-    },
-    {
-      id: '3',
-      direction: 'inbound',
-      content: "2",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 180000).toISOString()
-    },
-    {
-      id: '4',
-      direction: 'outbound',
-      content: "✨ Let's create your dream nails.\n\n📌 Upload your inspiration picture.\n\n📌 What length?\n• Short\n• Medium\n• Long\n• XL\n\n📌 What's the occasion?\nBirthday\nWedding\nVacation\nEveryday\n\n📌 Preferred colour?\n\n📌 Your delivery state?",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 120000).toISOString(),
-      isAI: true
-    },
-    {
-      id: '5',
-      direction: 'inbound',
-      content: "Medium length, wedding, nude colour, Lagos",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 60000).toISOString()
-    },
-    {
-      id: '6',
-      direction: 'outbound',
-      content: "Perfect!\n\nWe'll prepare your quote.\n\nAverage price:\n₦18,000-₦30,000 depending on design.\n\nContinue to payment?",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 30000).toISOString(),
-      isAI: true
-    },
-    {
-      id: '7',
-      direction: 'inbound',
-      content: "Yes",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 15000).toISOString()
-    },
-    {
-      id: '8',
-      direction: 'outbound',
-      content: "Order Summary\n\nDesign: Custom Medium Nude\nLength: Medium\nColour: Nude\n\nTotal: ₦24,000\n\nPay here 👇\n[Payment Link]",
-      msg_type: 'text',
-      status: 'read',
-      sent_at: new Date(baseTime - 5000).toISOString(),
-      isAI: true,
-      bookingStatus: 'pending'
-    }
-  ]
-}
-
 function parseNumbers(raw: string): string[] {
   return raw
     .split(/[\n,;\s]+/)
@@ -327,13 +249,7 @@ export default function ContactsPage() {
     const res = await fetch(`/api/conversations/${contactId}`)
     if (res.ok) {
       const data = await res.json()
-      // If no messages, add mock AI booking conversation
-      if (!data.messages || data.messages.length === 0) {
-        const mockMessages = generateMockBookingConversation(contactId)
-        setMessages(mockMessages)
-      } else {
-        setMessages(data.messages ?? [])
-      }
+      setMessages(data.messages ?? [])
       setActiveLead(data.lead ?? null)
     }
   }, [])
