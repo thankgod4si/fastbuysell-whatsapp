@@ -32,10 +32,18 @@ export async function saveInboundMessage(params: {
   contactId?: string | null
   phone: string
   content: string
-  msgType: 'text' | 'button_reply' | 'form_submission'
+  msgType: 'text' | 'button_reply' | 'form_submission' | 'image' | 'video' | 'audio' | 'document' | 'sticker'
   userId?: string | null
+  mediaData?: {
+    media_url: string
+    media_type: string
+    media_mime_type: string
+    media_id: string
+    caption?: string | null
+    media_size?: number | null
+  }
 }) {
-  const { error } = await supabaseAdmin.from('message_logs').insert({
+  const insertData: Record<string, unknown> = {
     contact_id:  params.contactId ?? null,
     channel:     'whatsapp',
     recipient:   params.phone,
@@ -45,7 +53,18 @@ export async function saveInboundMessage(params: {
     status:      'read',
     sent_at:     new Date().toISOString(),
     user_id:     params.userId ?? null,
-  })
+  }
+
+  if (params.mediaData) {
+    insertData.media_url = params.mediaData.media_url
+    insertData.media_type = params.mediaData.media_type
+    insertData.media_mime_type = params.mediaData.media_mime_type
+    insertData.media_id = params.mediaData.media_id
+    insertData.caption = params.mediaData.caption
+    insertData.media_size = params.mediaData.media_size
+  }
+
+  const { error } = await supabaseAdmin.from('message_logs').insert(insertData)
   if (error) {
     console.error('[saveInboundMessage] DB error:', error.message, error.details)
   } else {

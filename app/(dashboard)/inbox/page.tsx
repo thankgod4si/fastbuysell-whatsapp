@@ -10,6 +10,9 @@ interface Message {
   id: string; direction: 'outbound' | 'inbound'; content: string | null
   msg_type: string; status: string; sent_at: string
   isAI?: boolean
+  media_url?: string | null
+  media_type?: string | null
+  caption?: string | null
 }
 
 interface Conversation {
@@ -22,7 +25,7 @@ interface Conversation {
   status: string
   sent_at: string
   contact_id: string | null
-  contacts?: { id: string; wa_name: string | null; name: string | null } | null
+  contacts?: { id: string; wa_name: string | null; name: string | null; profile_picture_url: string | null } | null
 }
 
 type CRMTab = 'all' | 'new' | 'contacted' | 'closed'
@@ -46,7 +49,22 @@ function displayNameFromConversation(c: Conversation) {
   return c.contacts?.wa_name ?? c.contacts?.name ?? c.recipient ?? 'Unknown'
 }
 
-function Avatar({ name, phone, size = 40 }: { name: string | null; phone: string | null | undefined; size?: number }) {
+function Avatar({ name, phone, profilePictureUrl, size = 40 }: { name: string | null; phone: string | null | undefined; profilePictureUrl?: string | null; size?: number }) {
+  if (profilePictureUrl) {
+    return (
+      <img 
+        src={profilePictureUrl} 
+        alt={name ?? 'Avatar'} 
+        className="rounded-full shrink-0 object-cover"
+        style={{ width: size, height: size }}
+        onError={(e) => {
+          // Fallback to colored avatar if image fails to load
+          e.currentTarget.style.display = 'none'
+          e.currentTarget.nextElementSibling?.classList.remove('hidden')
+        }}
+      />
+    )
+  }
   const bg = avatarColor(phone ?? 'unknown')
   return (
     <div className="rounded-full flex items-center justify-center text-white font-bold shrink-0"
@@ -156,7 +174,7 @@ function ContextPanel({ contact, lead }: { contact: Contact | null; lead: Lead |
       <div className="overflow-y-auto flex-1">
         <div className="px-4 py-5 text-center" style={{ background: `linear-gradient(160deg, ${color}28 0%, ${color}08 100%)` }}>
           <div className="flex justify-center mb-3">
-            <Avatar name={contact.wa_name ?? contact.name} phone={contact.phone} size={64} />
+            <Avatar name={contact.wa_name ?? contact.name} phone={contact.phone} profilePictureUrl={contact.profile_picture_url} size={64} />
           </div>
           <h2 className="text-[#1C1C1E] font-black text-lg leading-tight">{name}</h2>
           <p className="text-[#8E8E93] text-sm font-mono mt-1">{contact.phone}</p>
@@ -225,6 +243,9 @@ export default function InboxPage() {
   const [crmTab, setCrmTab] = useState<CRMTab>('all')
   const [reply, setReply] = useState('')
   const [sending, setSending] = useState(false)
+  const [showContactDetails, setShowContactDetails] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -300,15 +321,54 @@ export default function InboxPage() {
 
   async function sendReply(e: { preventDefault(): void }) {
     e.preventDefault()
-    if (!selected?.contact_id || !reply.trim()) return
+    if (!selected?.contact_id || (!reply.trim() && !selectedFile)) return
     setSending(true)
-    const res = await fetch('/api/send/reply', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contactId: selected.contact_id, message: reply.trim() }),
-    })
-    setSending(false)
-    if (res.ok) { setReply(''); loadMessages(selected.contact_id) }
+    setUploading(true)
+
+    try {
+      let mediaId: string | null = null
+      let mediaType: string | null = null
+
+      // Upload file to Meta if selected
+      if (selectedFile) {
+        const formData = new FormData()
+        formData.append('file', selectedFile)
+        formData.append('type', selectedFile.type)
+        formData.append('messaging_product', 'whatsapp')
+
+        const uploadRes = await fetch('/api/send/media', {
+          method: 'POST',
+          body: formData,
+        })
+        const uploadData = await uploadRes.json()
+        if (uploadData.id) {
+          mediaId = uploadData.id
+          mediaType = selectedFile.type.startsWith('image/') ? 'image' :
+                      selectedFile.type.startsWith('video/') ? 'video' :
+                      selectedFile.type.startsWith('audio/') ? 'audio' : 'document'
+        }
+      }
+
+      const res = await fetch('/api/send/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          contactId: selected.contact_id, 
+          message: reply.trim(),
+          mediaId,
+          mediaType,
+          caption: reply.trim() || undefined
+        }),
+      })
+      setSending(false)
+      setUploading(false)
+      setSelectedFile(null)
+      if (res.ok) { setReply(''); loadMessages(selected.contact_id) }
+    } catch (err) {
+      console.error('Failed to send:', err)
+      setSending(false)
+      setUploading(false)
+    }
   }
 
   function bubbleLabel(m: Message) {
@@ -396,7 +456,7 @@ export default function InboxPage() {
                   onClick={() => setSelected(c)}
                   className={`w-full text-left flex items-center gap-3 px-4 py-3 border-b border-black/[0.04] transition-colors ${isSelected ? 'bg-[#25D366]/8' : 'hover:bg-black/[0.02]'}`}
                 >
-                  <Avatar name={c.contacts?.wa_name ?? c.contacts?.name ?? null as string | null} phone={c.recipient ?? 'unknown'} size={42} />
+                  <Avatar name={c.contacts?.wa_name ?? c.contacts?.name ?? null as string | null} phone={c.recipient ?? 'unknown'} profilePictureUrl={c.contacts?.profile_picture_url} size={42} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-[#1C1C1E] text-sm font-semibold truncate">{name}</p>
@@ -422,8 +482,13 @@ export default function InboxPage() {
             <>
               {/* Chat header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-black/[0.08]" style={{background:'rgba(255,255,255,0.95)',backdropFilter:'blur(20px)'}}>
-                <Avatar name={selected.contacts?.wa_name ?? selected.contacts?.name ?? null as string | null} phone={selected.recipient ?? 'unknown'} size={38} />
-                <div className="flex-1 min-w-0">
+                <button 
+                  onClick={() => setShowContactDetails(true)}
+                  className="cursor-pointer"
+                >
+                  <Avatar name={selected.contacts?.wa_name ?? selected.contacts?.name ?? null as string | null} phone={selected.recipient ?? 'unknown'} profilePictureUrl={selected.contacts?.profile_picture_url} size={38} />
+                </button>
+                <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setShowContactDetails(true)}>
                   <p className="text-[#1C1C1E] font-bold text-sm truncate">{displayNameFromConversation(selected)}</p>
                   <p className="text-[#8E8E93] text-[11px] font-mono">{selected.recipient}</p>
                 </div>
@@ -461,9 +526,52 @@ export default function InboxPage() {
                               out ? { background: ai ? '#007AFF' : '#DCF8C6', color: ai ? 'white' : '#1C1C1E' } :
                               { background: 'white', border: '1px solid rgba(0,0,0,0.06)' }
                             }>
+                            {/* Media rendering */}
+                            {m.media_url && m.media_type === 'image' && (
+                              <img 
+                                src={m.media_url} 
+                                alt={m.caption || 'Image'} 
+                                className="rounded-lg mb-2 max-w-full cursor-pointer hover:opacity-90"
+                                onClick={() => m.media_url && window.open(m.media_url, '_blank')}
+                              />
+                            )}
+                            {m.media_url && m.media_type === 'video' && (
+                              <video 
+                                src={m.media_url} 
+                                controls 
+                                className="rounded-lg mb-2 max-w-full"
+                              />
+                            )}
+                            {m.media_url && m.media_type === 'audio' && (
+                              <audio 
+                                src={m.media_url} 
+                                controls 
+                                className="mb-2 w-full"
+                              />
+                            )}
+                            {m.media_url && m.media_type === 'document' && (
+                              <a 
+                                href={m.media_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 p-2 bg-black/5 rounded-lg mb-2 hover:bg-black/10"
+                              >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                  <polyline points="14 2 14 8 20 8"/>
+                                  <line x1="16" y1="13" x2="8" y2="13"/>
+                                  <line x1="16" y1="17" x2="8" y2="17"/>
+                                  <polyline points="10 9 9 9 8 9"/>
+                                </svg>
+                                <span className="text-xs">Download file</span>
+                              </a>
+                            )}
                             <p style={{ color: isForm ? '#34C759' : (ai ? 'white' : '#1C1C1E') }} className="whitespace-pre-wrap">
                               {isForm && '✅ '}{bubbleLabel(m)}
                             </p>
+                            {m.caption && !m.media_url && (
+                              <p className="text-xs mt-1 opacity-70">{m.caption}</p>
+                            )}
                           </div>
                         </div>
                         <div className={`flex items-center gap-1 mt-0.5 px-1 ${out ? 'justify-end' : 'justify-start'}`}>
@@ -485,13 +593,28 @@ export default function InboxPage() {
               {/* Reply input */}
               <form onSubmit={sendReply} className="flex items-end gap-2 px-3 py-3 border-t border-black/[0.06]" style={{background:'rgba(255,255,255,0.95)'}}>
                 <input
+                  type="file"
+                  accept="image/*,video/*,audio/*,application/pdf"
+                  onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="file-upload"
+                />
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('file-upload')?.click()}
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-all"
+                  style={{background:'#F2F2F7',color:'#8E8E93'}}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+                </button>
+                <input
                   value={reply}
                   onChange={e => setReply(e.target.value)}
                   placeholder="Type a message…"
                   className="flex-1 bg-[#F2F2F7] rounded-2xl px-4 py-2.5 text-sm text-[#1C1C1E] placeholder-[#C7C7CC] outline-none"
                 />
-                <button type="submit" disabled={sending || !reply.trim()} className="w-10 h-10 rounded-full flex items-center justify-center transition-all disabled:opacity-40" style={{background:'#25D366',color:'white',boxShadow:'0 2px 8px rgba(37,211,102,0.4)'}}>
-                  {sending ? '…' : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>}
+                <button type="submit" disabled={sending || uploading || (!reply.trim() && !selectedFile)} className="w-10 h-10 rounded-full flex items-center justify-center transition-all disabled:opacity-40" style={{background:'#25D366',color:'white',boxShadow:'0 2px 8px rgba(37,211,102,0.4)'}}>
+                  {sending || uploading ? '…' : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>}
                 </button>
               </form>
             </>
@@ -512,6 +635,67 @@ export default function InboxPage() {
           lead={activeLead} 
         />
       </div>
+
+      {/* Contact Details Slide-over */}
+      {showContactDetails && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/30 backdrop-blur-sm">
+          <div className="w-full max-w-md h-full bg-white flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.06]">
+              <h2 className="text-[#1C1C1E] font-bold text-lg">Contact Details</h2>
+              <button onClick={() => setShowContactDetails(false)} className="w-8 h-8 rounded-xl flex items-center justify-center bg-[#F2F2F7] text-[#8E8E93] hover:text-[#1C1C1E]">
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* Profile section */}
+              <div className="text-center mb-6">
+                <Avatar 
+                  name={selected.contacts?.wa_name ?? selected.contacts?.name ?? null as string | null} 
+                  phone={selected.recipient ?? 'unknown'} 
+                  profilePictureUrl={selected.contacts?.profile_picture_url} 
+                  size={80} 
+                />
+                <h3 className="text-[#1C1C1E] font-bold text-xl mt-4">
+                  {selected.contacts?.wa_name ?? selected.contacts?.name ?? 'Unknown'}
+                </h3>
+                <p className="text-[#8E8E93] text-sm font-mono mt-1">{selected.recipient}</p>
+                {activeContact?.wa_about && (
+                  <p className="text-[#8E8E93] text-sm mt-3 italic">"{activeContact.wa_about}"</p>
+                )}
+              </div>
+
+              {/* Details */}
+              <div className="space-y-4">
+                <DetailRow label="Email" value={activeContact?.wa_email} />
+                <DetailRow label="Business" value={activeContact?.wa_business_name} />
+                <DetailRow label="Address" value={activeContact?.wa_address} />
+                <DetailRow label="Last seen" value={activeContact?.last_seen_at ? new Date(activeContact.last_seen_at).toLocaleString() : null} />
+                <DetailRow label="Type" value={activeContact?.is_business ? 'Business Account' : 'Personal Account'} />
+                <DetailRow label="Channel" value={selected.channel} />
+                <DetailRow label="Added" value={activeContact?.created_at ? new Date(activeContact.created_at).toLocaleString() : null} />
+              </div>
+
+              {/* Message history summary */}
+              <div className="mt-8 pt-6 border-t border-black/[0.06]">
+                <h4 className="text-[#1C1C1E] font-semibold text-sm mb-3">Message History</h4>
+                <p className="text-[#8E8E93] text-sm">Total messages: {messages.length}</p>
+                <p className="text-[#8E8E93] text-sm">First contact: {activeContact?.created_at ? new Date(activeContact.created_at).toLocaleDateString() : 'N/A'}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null
+  return (
+    <div className="flex justify-between items-center py-2">
+      <span className="text-[#8E8E93] text-sm">{label}</span>
+      <span className="text-[#1C1C1E] text-sm font-medium">{value}</span>
     </div>
   )
 }

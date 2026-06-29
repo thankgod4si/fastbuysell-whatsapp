@@ -14,6 +14,13 @@ export interface Contact {
   user_id: string | null
   wa_name: string | null
   name: string | null
+  profile_picture_url: string | null
+  wa_about: string | null
+  wa_email: string | null
+  wa_address: string | null
+  wa_business_name: string | null
+  last_seen_at: string | null
+  is_business: boolean | null
 }
 
 export interface Lead {

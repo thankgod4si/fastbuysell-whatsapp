@@ -497,6 +497,113 @@ export async function POST(request: Request) {
 
     console.log(`[webhook] msg type=${message.type} from=${from} bizId=${businessPhoneNumberId}`)
 
+    // ── Fetch and save WhatsApp profile picture ─────────────────────────────
+    try {
+      const profilePicResponse = await fetch(
+        `https://graph.facebook.com/v18.0/${from}/profile_picture`,
+        { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` } }
+      )
+      if (profilePicResponse.ok) {
+        const profilePicData = await profilePicResponse.json()
+        const profilePicUrl = profilePicData.data?.url
+        if (profilePicUrl) {
+          // Download the profile picture
+          const imageBuffer = await fetch(profilePicUrl).then(r => r.arrayBuffer())
+          const buffer = Buffer.from(imageBuffer)
+          
+          // Upload to Supabase Storage
+          const fileName = `${from.replace('+', '')}_profile.jpg`
+          const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+            .from('media')
+            .upload(`profile-pictures/${fileName}`, buffer, {
+              contentType: 'image/jpeg',
+              upsert: true
+            })
+          
+          if (!uploadError && uploadData) {
+            // Get public URL
+            const { data: { publicUrl } } = supabaseAdmin.storage
+              .from('media')
+              .getPublicUrl(`profile-pictures/${fileName}`)
+            
+            // Update all contacts with this phone number
+            await supabaseAdmin
+              .from('contacts')
+              .update({ 
+                profile_picture_url: publicUrl,
+                wa_profile_fetched_at: new Date().toISOString()
+              })
+              .eq('phone', from)
+            
+            console.log(`[webhook] Updated profile picture for ${from}`)
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[webhook] Failed to fetch profile picture:', e)
+    }
+
+    // ── Handle media messages (image, video, audio, document, sticker) ─────────
+    const mediaTypes = ['image', 'video', 'audio', 'document', 'sticker']
+    if (mediaTypes.includes(message.type)) {
+      try {
+        const mediaData = message[message.type as keyof typeof message] as any
+        const mediaId = mediaData?.id
+        const caption = mediaData?.caption
+
+        if (mediaId) {
+          // Get media URL from Meta
+          const mediaInfoResponse = await fetch(
+            `https://graph.facebook.com/v18.0/${mediaId}`,
+            { headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` } }
+          )
+          const mediaInfo = await mediaInfoResponse.json()
+          
+          if (mediaInfo.url) {
+            // Download the media
+            const mediaBuffer = await fetch(mediaInfo.url, {
+              headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` }
+            }).then(r => r.arrayBuffer())
+            const buffer = Buffer.from(mediaBuffer)
+            
+            // Determine file extension from mime type
+            const mimeType = mediaInfo.mime_type || 'application/octet-stream'
+            const extension = mimeType.split('/')[1] || 'bin'
+            
+            // Upload to Supabase Storage
+            const fileName = `${from.replace('+', '')}_${mediaId}.${extension}`
+            const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
+              .from('media')
+              .upload(`message-media/${fileName}`, buffer, {
+                contentType: mimeType,
+                upsert: true
+              })
+            
+            if (!uploadError && uploadData) {
+              // Get public URL
+              const { data: { publicUrl } } = supabaseAdmin.storage
+                .from('media')
+                .getPublicUrl(`message-media/${fileName}`)
+              
+              // Store media metadata for later use in message_logs
+              ;(message as any)._mediaData = {
+                media_url: publicUrl,
+                media_type: message.type,
+                media_mime_type: mimeType,
+                media_id: mediaId,
+                caption: caption || null,
+                media_size: mediaInfo.file_size || null
+              }
+              
+              console.log(`[webhook] Saved media ${message.type} for ${from}`)
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[webhook] Failed to process media:', e)
+      }
+    }
+
     // Resolve WA number owner — profiles.wa_phone_number_id is source of truth
     let waOwnerId: string | null = null
     if (businessPhoneNumberId) {
@@ -1155,6 +1262,27 @@ export async function POST(request: Request) {
             await supabase.from('contacts').update({ status: 'replied' }).eq('id', c.id!)
           }
         }
+      }
+    }
+
+    // ── Media messages (image, video, audio, document, sticker) ─────────────
+    if (mediaTypes.includes(message.type)) {
+      const mediaData = (message as any)._mediaData
+      const caption = message[message.type as keyof typeof message]?.caption || null
+      
+      for (const c of targets) {
+        console.log(`[webhook] saving ${message.type} userId=${c.user_id} contactId=${c.id}`)
+        await saveInboundMessage({
+          contactId: c.id,
+          phone: from,
+          content: caption || `Sent a ${message.type}`,
+          msgType: message.type as any,
+          userId: c.user_id,
+          mediaData: mediaData
+        })
+        
+        // Update contact status to replied
+        await supabase.from('contacts').update({ status: 'replied' }).eq('id', c.id!)
       }
     }
 

@@ -12,9 +12,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await client.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { contactId, message } = await request.json()
-  if (!contactId || !message?.trim()) {
-    return NextResponse.json({ error: 'contactId and message required' }, { status: 400 })
+  const { contactId, message, mediaId, mediaType, caption } = await request.json()
+  if (!contactId || (!message?.trim() && !mediaId)) {
+    return NextResponse.json({ error: 'contactId and message or mediaId required' }, { status: 400 })
   }
 
   const { data: contact } = await supabase
@@ -51,11 +51,49 @@ export async function POST(request: Request) {
     }, { status: 403 })
   }
 
-  console.log(`[reply] to=${contact.phone} phoneNumberId=${phoneNumberId} msg="${message.trim().slice(0,50)}"`)
-  const result = await sendTextMessage(contact.phone, message.trim(), phoneNumberId)
-  if ((result as { error?: { message?: string } }).error) {
-    console.error(`[reply] Meta error:`, JSON.stringify((result as { error: unknown }).error))
-    return NextResponse.json({ error: (result as { error: { message?: string } }).error.message ?? 'Send failed' }, { status: 500 }) }
+  console.log(`[reply] to=${contact.phone} phoneNumberId=${phoneNumberId} msg="${message?.trim().slice(0,50)}" mediaId=${mediaId}`)
+  
+  let result
+  if (mediaId && mediaType) {
+    // Send media message
+    const mediaPayload: Record<string, unknown> = {
+      messaging_product: 'whatsapp',
+      to: contact.phone,
+      type: mediaType,
+      [mediaType]: {
+        id: mediaId,
+      }
+    }
+    if (caption) {
+      (mediaPayload[mediaType] as Record<string, unknown>).caption = caption
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(mediaPayload),
+      }
+    )
+    result = await response.json()
+    
+    if (!response.ok) {
+      console.error(`[reply] Media error:`, JSON.stringify(result.error))
+      return NextResponse.json({ error: result.error?.message || 'Send failed' }, { status: 500 })
+    }
+  } else {
+    // Send text message
+    result = await sendTextMessage(contact.phone, message.trim(), phoneNumberId)
+    if ((result as { error?: { message?: string } }).error) {
+      console.error(`[reply] Meta error:`, JSON.stringify((result as { error: unknown }).error))
+      return NextResponse.json({ error: (result as { error: { message?: string } }).error.message ?? 'Send failed' }, { status: 500 })
+    }
+  }
+  
   console.log(`[reply] sent wamid=${(result.messages as Array<{id:string}>)?.[0]?.id}`)
 
   const wamid = (result.messages as Array<{ id: string }>)?.[0]?.id
