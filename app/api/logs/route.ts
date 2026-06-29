@@ -13,10 +13,10 @@ export async function GET(request: Request) {
   const contactId = url.searchParams.get('contactId')
   const leadId = url.searchParams.get('leadId')
 
+  // Temporarily remove user_id filter to debug
   let query = authClient
     .from('message_logs')
     .select('*')
-    .eq('user_id', user.id)
     .order('sent_at', { ascending: false })
     .limit(200)
 
@@ -25,7 +25,18 @@ export async function GET(request: Request) {
   if (leadId) query = query.eq('lead_id', leadId)
 
   const { data, error } = await query
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[logs] Query error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
-  return NextResponse.json(data ?? [])
+  console.log('[logs] Total messages found:', data?.length)
+  console.log('[logs] User ID:', user.id)
+  console.log('[logs] Sample message:', data?.[0])
+  
+  // Filter by user_id after fetching to debug
+  const userMessages = data?.filter(m => m.user_id === user.id) || []
+  console.log('[logs] Messages for user:', userMessages.length)
+
+  return NextResponse.json(userMessages)
 }

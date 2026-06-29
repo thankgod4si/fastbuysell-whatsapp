@@ -9,24 +9,33 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Get all messages ordered by recipient then sent_at DESC
+  // Temporarily remove user_id filter to debug
   const { data, error } = await authClient
     .from('message_logs')
     .select('*, contacts(id, wa_name, name, status)')
-    .eq('user_id', user.id)
     .order('recipient', { ascending: true })
     .order('sent_at', { ascending: false })
     .limit(500)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[inbox] Query error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  
+  console.log('[inbox] Total messages found:', data?.length)
+  console.log('[inbox] User ID:', user.id)
+  console.log('[inbox] Sample message:', data?.[0])
+  
+  // Filter by user_id after fetching to debug
+  const userMessages = data?.filter(m => m.user_id === user.id) || []
+  console.log('[inbox] Messages for user:', userMessages.length)
   
   // Get latest message per recipient (WhatsApp-style bubbling)
   const latestByRecipient = new Map()
-  if (data) {
-    for (const msg of data) {
-      const key = msg.recipient
-      if (!latestByRecipient.has(key)) {
-        latestByRecipient.set(key, msg)
-      }
+  for (const msg of userMessages) {
+    const key = msg.recipient
+    if (!latestByRecipient.has(key)) {
+      latestByRecipient.set(key, msg)
     }
   }
   
