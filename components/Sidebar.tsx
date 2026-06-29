@@ -48,16 +48,6 @@ const ICON = {
   chevronL:   'M15 18l-6-6 6-6',
   chevronR:   'M9 18l6-6-6-6',
   menu:       ['M3 12h18', 'M3 6h18', 'M3 18h18'],
-  users:      ['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M23 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
-  dollar:     ['M12 2v20', 'M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6'],
-  target:     ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
-  sparkles:   'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
-  alert:      ['M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4', 'M12 17h.01'],
-  trending:   ['M23 6l-9.5 9.5-5-5L1 18'],
-  pie:        ['M21.21 15.89A10 10 0 1 1 8 2.83', 'M22 12A10 10 0 0 0 12 2v10z'],
-  package:    ['M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z', 'M3.27 6.96 12 12.01 20.73 6.96', 'M12 22.08V12.01'],
-  report:     ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M16 13H8', 'M16 17H8', 'M10 9H8'],
-  shield:     ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'],
 } as const
 
 // ---------------------------------------------------------------------------
@@ -68,41 +58,24 @@ type NavItem = { group: string | null; href: string; label: string; icon: PathOr
 
 const NAV: NavItem[] = [
   { group: null,         href: '/dashboard',  label: 'Dashboard',         icon: ICON.dashboard, color: '#007AFF' },
-  // ── AI Growth Manager ─────────────────────────────────────────────────────────────
-  { group: null,         href: '/ai-growth',  label: 'AI Growth Manager', icon: ICON.sparkles,  color: '#007AFF' },
-  // ── Growth Intelligence ─────────────────────────────────────────────────────────────
-  { group: 'Growth',     href: '/customers',  label: 'Customers',         icon: ICON.users,     color: '#007AFF' },
-  { group: 'Growth',     href: '/revenue',    label: 'Revenue',           icon: ICON.dollar,    color: '#059669' },
-  { group: 'Growth',     href: '/executive',  label: 'Executive',         icon: ICON.chart,      color: '#FF9500' },
-  // ── Operations ─────────────────────────────────────────────────────────────────────
-  { group: 'Operations', href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#007AFF' },
-  { group: 'Operations', href: '/staff',      label: 'Staff Portal',      icon: ICON.target,     color: '#007AFF' },
-  { group: 'Operations', href: '/staff-management', label: 'Staff Management', icon: ICON.shield,  color: '#007AFF' },
-  { group: 'Operations', href: '/inventory',  label: 'Product Inventory', icon: ICON.package,    color: '#007AFF' },
-  { group: 'Operations', href: '/reports',    label: 'Customer Reports',  icon: ICON.report,     color: '#DC2626' },
-  // ── Nails Business ─────────────────────────────────────────────────────────────────
-  { group: 'Nails',      href: '/orders',     label: 'Orders',            icon: ICON.package,    color: '#007AFF' },
-  { group: 'Nails',      href: '/nails-crm',  label: 'Customer Style Profiles', icon: ICON.users,  color: '#007AFF' },
-  { group: 'Nails',      href: '/content-library', label: 'Content Library', icon: ICON.sparkles,  color: '#FF9500' },
-  { group: 'Nails',      href: '/nails-catalog', label: 'Nail Catalog',    icon: ICON.templates, color: '#007AFF' },
-  // ── AI & Automation ────────────────────────────────────────────────────────────────
-  { group: 'AI',         href: '/recommendations', label: 'Recommendations', icon: ICON.sparkles,  color: '#FF9500' },
-  { group: 'AI',         href: '/follow-up',   label: 'Follow-Up',         icon: ICON.zap,        color: '#007AFF' },
-  { group: 'AI',         href: '/reactivation', label: 'Reactivation',     icon: ICON.alert,      color: '#FF6B6B' },
-  // ── Outreach ─────────────────────────────────────────────────────────────────────
-  { group: 'Outreach',   href: '/inbox',      label: 'Inbox',              icon: ICON.whatsapp,  color: '#25D366' },
-  { group: 'Outreach',   href: '/contacts',   label: 'AI Booking Assistant', icon: ICON.whatsapp,  color: '#25D366' },
-  { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#007AFF' },
+  // ── Bookings ─────────────────────────────────────────────────────────────
+  { group: 'Bookings',   href: '/bookings',   label: 'Appointments',      icon: ICON.calendar,  color: '#8B5CF6' },
+  { group: 'Bookings',   href: '/leads',      label: 'Customers',         icon: ICON.leads,     color: '#007AFF' },
+  // ── Inbox ────────────────────────────────────────────────────────────────
+  { group: 'Inbox',      href: '/inbox',      label: 'Unified Inbox',     icon: ICON.logs,      color: '#25D366' },
+  // ── Outreach ─────────────────────────────────────────────────────────────
+  { group: 'Outreach',   href: '/contacts',   label: 'WhatsApp Blast',    icon: ICON.whatsapp,  color: '#25D366' },
+  { group: 'Outreach',   href: '/campaigns',  label: 'Email Campaigns',   icon: ICON.email,     color: '#AF52DE' },
   { group: 'Outreach',   href: '/sms',        label: 'SMS Blast',         icon: ICON.sms,       color: '#FF9500' },
   { group: 'Outreach',   href: '/marketing',  label: 'Meta Ads',          icon: ICON.megaphone, color: '#FF9500' },
-  // ── Automation ───────────────────────────────────────────────────────────────────
+  // ── Automation ───────────────────────────────────────────────────────────
   { group: 'Automation', href: '/rules',      label: 'Auto Replies',      icon: ICON.zap,       color: '#FF9500' },
-  { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#007AFF' },
+  { group: 'Automation', href: '/comments',   label: 'Comment Triggers',  icon: ICON.chart,     color: '#AF52DE' },
   // ── Connect ───────────────────────────────────────────────────────────────
   { group: 'Connect',    href: '/meta',          label: 'Meta & WhatsApp',   icon: ICON.phone,     color: '#007AFF' },
-  { group: 'Connect',    href: '/catalog',       label: 'Products',          icon: ICON.templates, color: '#007AFF' },
-  { group: 'Connect',    href: '/flow-builder',  label: 'Booking Flow',      icon: ICON.zap,       color: '#007AFF' },
-  { group: 'Connect',    href: '/templates',     label: 'Templates',         icon: ICON.templates, color: '#007AFF' },
+  { group: 'Connect',    href: '/catalog',       label: 'Products',          icon: ICON.templates, color: '#AF52DE' },
+  { group: 'Connect',    href: '/flow-builder',  label: 'Booking Flow',      icon: ICON.zap,       color: '#8B5CF6' },
+  { group: 'Connect',    href: '/templates',     label: 'Templates',         icon: ICON.templates, color: '#5856D6' },
   // ── Analytics ────────────────────────────────────────────────────────────
   { group: 'Analytics',  href: '/logs',       label: 'Delivery Feed',     icon: ICON.robot,     color: '#8E8E93' },
   // ── Account ───────────────────────────────────────────────────────────────
@@ -111,31 +84,6 @@ const NAV: NavItem[] = [
 ]
 
 const NAV_GROUPS = Array.from(new Set(NAV.map(i => i.group).filter(Boolean))) as string[]
-
-// Filter navigation based on business type
-function getFilteredNav(businessType?: 'salon' | 'nails'): NavItem[] {
-  if (!businessType) return NAV // Show all if no business type set
-  
-  if (businessType === 'nails') {
-    // For nails business, hide all salon-specific operations
-    return NAV.filter(item => {
-      // Hide salon-specific operations section
-      if (item.group === 'Operations') return false
-      return true
-    })
-  }
-  
-  // For salon business, hide nails-specific items
-  if (businessType === 'salon') {
-    return NAV.filter(item => {
-      // Hide nails-specific section
-      if (item.group === 'Nails') return false
-      return true
-    })
-  }
-  
-  return NAV
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -202,17 +150,12 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const router   = useRouter()
   const [profile,   setProfile]   = useState<Profile | null>(null)
   const [userEmail, setUserEmail] = useState('')
-  const [businessType, setBusinessType] = useState<'salon' | 'nails' | undefined>(undefined)
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabaseBrowser.auth.getUser()
       if (!user) return
       setUserEmail(user.email ?? '')
-      
-      // Get business_type from user metadata (immediate, no DB query)
-      setBusinessType(user.user_metadata?.business_type as 'salon' | 'nails' | undefined)
-      
       const { data } = await supabaseBrowser
         .from('profiles')
         .select('full_name, subscription_status, trial_sends_remaining, is_admin')
@@ -329,27 +272,18 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className={`flex-1 py-3 overflow-y-auto space-y-0.5 ${collapsed ? 'px-1.5' : 'px-3'}`}>
-        {(() => {
-          const filteredNav = getFilteredNav(businessType)
-          const filteredGroups = Array.from(new Set(filteredNav.map(i => i.group).filter(Boolean))) as string[]
-          
-          return (
-            <>
-              {filteredNav.filter(i => !i.group).map(item => (
-                <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-              ))}
+        {NAV.filter(i => !i.group).map(item => (
+          <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+        ))}
 
-              {filteredGroups.map(group => (
-                <div key={group} className="pt-4">
-                  <SectionLabel collapsed={collapsed}>{group}</SectionLabel>
-                  {filteredNav.filter(i => i.group === group).map(item => (
-                    <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
-                  ))}
-                </div>
-              ))}
-            </>
-          )
-        })()}
+        {NAV_GROUPS.map(group => (
+          <div key={group} className="pt-4">
+            <SectionLabel collapsed={collapsed}>{group}</SectionLabel>
+            {NAV.filter(i => i.group === group).map(item => (
+              <NavLink key={item.href} item={item} active={isActive(item.href)} collapsed={collapsed} />
+            ))}
+          </div>
+        ))}
 
         {profile?.is_admin && (
           <div className="pt-4">

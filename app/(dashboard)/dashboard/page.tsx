@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { supabaseBrowser } from '@/lib/supabase-browser'
-import { TrendingUp, Users, DollarSign, Calendar, Target, Sparkles, AlertCircle, ArrowUpRight } from 'lucide-react'
 
 // â”€â”€â”€ Icon helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function Icon({ d, size = 18, color = 'currentColor' }: { d: string | string[]; size?: number; color?: string }) {
@@ -33,11 +32,6 @@ interface DashStats {
   monthRevenue: number
   currency: string
   totalCustomers: number
-  activeCustomers: number
-  newCustomersMonth: number
-  repeatRate: number
-  productRevenue: number
-  followUpRevenue: number
   inboxToday: number
   aiEnabled: boolean
 }
@@ -72,28 +66,6 @@ function ChannelLogo({ channel, size = 16 }: { channel: string; size?: number })
 
 // â”€â”€â”€ Stat card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function PremiumKPICard({ label, value, change, trend, color, href, icon }: {
-  label: string; value: string; change: string; trend: 'up' | 'down'; color: string; href: string; icon: React.ReactNode
-}) {
-  const isPositive = trend === 'up'
-  return (
-    <Link href={href} className="block bg-white rounded-2xl p-5 hover:shadow-lg transition-all group border border-black/[0.04]"
-      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-      <div className="flex items-start justify-between mb-3">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: `${color}15` }}>
-          <span style={{ color }}>{icon}</span>
-        </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-full ${isPositive ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-          {isPositive ? '↑' : '↓'} {change}
-        </span>
-      </div>
-      <p className="text-2xl font-black tabular-nums text-[#1C1C1E]">{value}</p>
-      <p className="text-xs font-semibold text-[#8E8E93] mt-1">{label}</p>
-    </Link>
-  )
-}
-
 function StatCard({ label, value, sub, color, icon, href }: {
   label: string; value: string; sub: string; color: string; icon: string | string[]; href: string
 }) {
@@ -121,7 +93,7 @@ function ApptRow({ b, today }: { b: BookingRow; today: string }) {
   return (
     <div className="flex items-center gap-3 py-3 border-b border-black/[0.04] last:border-0">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0"
-        style={{ background: isToday ? 'linear-gradient(135deg,#007AFF,#D946EF)' : '#E5E7EB' }}>
+        style={{ background: isToday ? 'linear-gradient(135deg,#8B5CF6,#D946EF)' : '#E5E7EB' }}>
         <span style={{ color: isToday ? 'white' : '#6B7280' }}>{initials}</span>
       </div>
       <div className="flex-1 min-w-0">
@@ -167,9 +139,9 @@ function InboxRow({ item }: { item: { channel: string; recipient: string; conten
 
 function SetupBanner() {
   return (
-    <div className="rounded-3xl border-2 border-dashed border-[#007AFF]/25 bg-[#FAF5FF] p-6 flex items-center gap-5">
+    <div className="rounded-3xl border-2 border-dashed border-[#8B5CF6]/25 bg-[#FAF5FF] p-6 flex items-center gap-5">
       <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-        style={{ background: 'linear-gradient(135deg,#007AFF,#D946EF)' }}>
+        style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)' }}>
         <Icon d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" size={20} color="white" />
       </div>
       <div className="flex-1 min-w-0">
@@ -177,7 +149,7 @@ function SetupBanner() {
         <p className="text-xs text-[#6B7280] mt-0.5">Let customers book appointments 24/7 via WhatsApp, Instagram, and Facebook — fully automated.</p>
       </div>
       <Link href="/settings" className="shrink-0 px-4 py-2 rounded-xl text-xs font-bold text-white"
-        style={{ background: 'linear-gradient(135deg,#007AFF,#D946EF)' }}>
+        style={{ background: 'linear-gradient(135deg,#8B5CF6,#D946EF)' }}>
         Set up →
       </Link>
     </div>
@@ -190,8 +162,7 @@ export default function DashboardPage() {
   const [loading,    setLoading]    = useState(true)
   const [userName,   setUserName]   = useState('')
   const [bizName,    setBizName]    = useState('')
-  const [businessType, setBusinessType] = useState<'salon' | 'nails' | undefined>(undefined)
-  const [stats,      setStats]      = useState<DashStats>({ todayBookings: 0, todayRevenue: 0, monthRevenue: 0, currency: 'NGN', totalCustomers: 0, activeCustomers: 0, newCustomersMonth: 0, repeatRate: 0, productRevenue: 0, followUpRevenue: 0, inboxToday: 0, aiEnabled: false })
+  const [stats,      setStats]      = useState<DashStats>({ todayBookings: 0, todayRevenue: 0, monthRevenue: 0, currency: 'NGN', totalCustomers: 0, inboxToday: 0, aiEnabled: false })
   const [upcoming,   setUpcoming]   = useState<BookingRow[]>([])
   const [inbox,      setInbox]      = useState<{ channel: string; recipient: string; content: string | null; sent_at: string; direction: string }[]>([])
   const [outreach,   setOutreach]   = useState({ whatsapp: 0, email: 0, sms: 0 })
@@ -200,9 +171,6 @@ export default function DashboardPage() {
     async function load() {
       const { data: { user } } = await supabaseBrowser.auth.getUser()
       if (!user) { setLoading(false); return }
-
-      // Get business type from user metadata
-      setBusinessType(user.user_metadata?.business_type as 'salon' | 'nails' | undefined)
 
       const { data: profile } = await supabaseBrowser
         .from('profiles')
@@ -227,7 +195,6 @@ export default function DashboardPage() {
         .from('message_logs')
         .select('channel')
         .eq('direction', 'outbound')
-        .eq('user_id', user.id)
       setOutreach({
         whatsapp: (allOut ?? []).filter((l: any) => l.channel === 'whatsapp').length,
         email:    (allOut ?? []).filter((l: any) => l.channel === 'email').length,
@@ -249,7 +216,7 @@ export default function DashboardPage() {
         ] = await Promise.all([
           supabaseBrowser.from('bookings').select('id, services_menu(price, currency)').eq('payment_status','paid').eq('appointment_date', today),
           supabaseBrowser.from('booking_transactions').select('amount, currency').eq('status','success').gte('created_at', firstOfMonth),
-          supabaseBrowser.from('bookings').select('customer_phone, created_at').eq('payment_status','paid'),
+          supabaseBrowser.from('bookings').select('customer_phone').eq('payment_status','paid'),
           supabaseBrowser.from('booking_sessions').select('id').gte('updated_at', todayStart),
           supabaseBrowser.from('bookings').select('*, services_menu(service_name, price, currency)').eq('payment_status','paid').gte('appointment_date', today).order('appointment_date').order('time_slot').limit(5),
         ])
@@ -259,26 +226,14 @@ export default function DashboardPage() {
         const monthRev = (monthTxns ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0)
         const currency = (monthTxns ?? [])[0]?.currency ?? 'NGN'
 
-        const uniqueCustomers = new Set((customers ?? []).map((c: any) => c.customer_phone))
-        const activeCustomers = customers?.filter((c: any) => {
-          const lastVisit = new Date(c.created_at)
-          const daysSinceVisit = Math.floor((Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24))
-          return daysSinceVisit <= 90
-        }).length ?? 0
-        
         setStats({
-          todayBookings:      todayBkgs?.length ?? 0,
-          todayRevenue:       todayRev,
-          monthRevenue:       monthRev,
+          todayBookings:  todayBkgs?.length ?? 0,
+          todayRevenue:   todayRev,
+          monthRevenue:   monthRev,
           currency,
-          totalCustomers:     uniqueCustomers.size,
-          activeCustomers:    activeCustomers,
-          newCustomersMonth: Math.floor(uniqueCustomers.size * 0.15), // Simulated
-          repeatRate:         68, // Simulated percentage
-          productRevenue:     Math.floor(monthRev * 0.25), // Simulated
-          followUpRevenue:    Math.floor(monthRev * 0.12), // Simulated
-          inboxToday:         inboxSessions?.length ?? 0,
-          aiEnabled:          true,
+          totalCustomers: new Set((customers ?? []).map((c: any) => c.customer_phone)).size,
+          inboxToday:     inboxSessions?.length ?? 0,
+          aiEnabled:      true,
         })
         setUpcoming((upcomingBkgs ?? []) as BookingRow[])
       }
@@ -293,30 +248,14 @@ export default function DashboardPage() {
   const today   = new Date().toISOString().split('T')[0]
   const todayLabel = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
 
-function AIInsightCard({ title, insight, recommendation, color }: { title: string; insight: string; recommendation: string; color: string }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-black/[0.04]" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-      <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} style={{ color }} />
-        <h3 className="font-bold text-sm text-[#1C1C1E]">{title}</h3>
-      </div>
-      <p className="text-xs text-[#8E8E93] mb-2 leading-relaxed">{insight}</p>
-      <div className="flex items-start gap-2 mt-3 pt-3 border-t border-black/[0.04]">
-        <ArrowUpRight size={14} style={{ color }} className="shrink-0 mt-0.5" />
-        <p className="text-xs font-semibold" style={{ color }}>{recommendation}</p>
-      </div>
-    </div>
-  )
-}
-
-  return (
-    <div className="max-w-7xl space-y-6">
+    <div className="max-w-5xl space-y-6">
 
       {/* â”€â”€ Hero â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="rounded-3xl p-6 overflow-hidden relative"
         style={{ background: stats.aiEnabled
-          ? 'linear-gradient(135deg,#007AFF 0%,#D946EF 100%)'
-          : 'linear-gradient(135deg,#007AFF 0%,#007AFF 100%)',
+          ? 'linear-gradient(135deg,#8B5CF6 0%,#D946EF 100%)'
+          : 'linear-gradient(135deg,#007AFF 0%,#5856D6 100%)',
           boxShadow: stats.aiEnabled ? '0 8px 32px rgba(139,92,246,0.3)' : '0 8px 32px rgba(0,122,255,0.25)' }}>
         <div className="absolute -top-16 -right-16 w-64 h-64 rounded-full bg-white/5" />
         <div className="relative z-10">
@@ -349,9 +288,9 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
       {!loading && !stats.aiEnabled && <SetupBanner />}
 
       {/* â”€â”€ Booking stat cards (AI enabled) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {!loading && stats.aiEnabled && businessType === 'salon' && (
+      {!loading && stats.aiEnabled && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Today's Appointments" value={String(stats.todayBookings)}             sub="Confirmed & paid"      color="#007AFF" href="/bookings"             icon={['M8 2v4','M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']} />
+          <StatCard label="Today's Appointments" value={String(stats.todayBookings)}             sub="Confirmed & paid"      color="#8B5CF6" href="/bookings"             icon={['M8 2v4','M16 2v4','M3 10h18','M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z']} />
           <StatCard label="Today's Revenue"      value={fmtMoney(stats.todayRevenue,stats.currency)} sub="From paid bookings"  color="#059669" href="/bookings"             icon={['M12 2v20','M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6']} />
           <StatCard label="Month Revenue"        value={fmtMoney(stats.monthRevenue,stats.currency)} sub="All confirmed"       color="#007AFF" href="/bookings?tab=sales"   icon={['M18 20V10','M12 20V4','M6 20v-6']} />
           <StatCard label="Total Customers"      value={String(stats.totalCustomers)}            sub="Unique paid clients"   color="#FF9500" href="/leads"                icon={['M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2','M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z','M23 21v-2a4 4 0 0 0-3-3.87','M16 3.13a4 4 0 0 1 0 7.75']} />
@@ -385,7 +324,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
           <div className="lg:col-span-2 bg-white rounded-3xl overflow-hidden" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <div className="px-6 py-4 border-b border-black/[0.05] flex items-center justify-between">
               <h2 className="font-bold text-[#1C1C1E] text-sm">Upcoming Appointments</h2>
-              <Link href="/bookings" className="text-xs font-semibold text-[#007AFF]">View all →</Link>
+              <Link href="/bookings" className="text-xs font-semibold text-[#8B5CF6]">View all →</Link>
             </div>
             <div className="px-6">
               {stats.aiEnabled ? (
@@ -398,7 +337,7 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
               ) : (
                 <div className="py-10 text-center">
                   <p className="text-[#8E8E93] text-sm">AI booking not enabled</p>
-                  <Link href="/settings" className="text-xs text-[#007AFF] font-semibold mt-1 block">Enable AI booking →</Link>
+                  <Link href="/settings" className="text-xs text-[#8B5CF6] font-semibold mt-1 block">Enable AI booking →</Link>
                 </div>
               )}
             </div>
@@ -421,42 +360,18 @@ function AIInsightCard({ title, insight, recommendation, color }: { title: strin
         </div>
       )}
 
-      {/* â”€â”€ AI Insight Cards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
-      {!loading && stats.aiEnabled && businessType === 'salon' && (
-        <div className="grid md:grid-cols-3 gap-4">
-          <AIInsightCard
-            title="Wig Install Conversion"
-            insight="Customers who receive Wig Installs are 72% more likely to purchase Edge Control."
-            recommendation="Bundle Edge Control with all wig installations"
-            color="#007AFF"
-          />
-          <AIInsightCard
-            title="Dry Scalp Pattern"
-            insight="Customers with Dry Scalp frequently purchase Scalp Nourishing Oil."
-            recommendation="Auto-recommend oil for scalp treatment bookings"
-            color="#059669"
-          />
-          <AIInsightCard
-            title="Treatment Revenue"
-            insight="Hair Treatment customers have the highest product conversion rate at 68%."
-            recommendation="Prioritize treatment upsells"
-            color="#FF9500"
-          />
-        </div>
-      )}
-
-      {/* â”€â”€ Quick actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* â”€â”€ Quick actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {!loading && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { href: '/customers',  label: 'Customers',       sub: 'Manage profiles',   color: '#007AFF', icon: <Users size={16} /> },
-            { href: '/revenue',    label: 'Revenue',         sub: 'Analytics & charts', color: '#059669', icon: <DollarSign size={16} /> },
-            { href: '/staff',      label: 'Staff Portal',    sub: 'Performance',       color: '#007AFF', icon: <Target size={16} /> },
-            { href: '/reactivation', label: 'Reactivation', sub: 'At-risk customers',  color: '#FF6B6B', icon: <AlertCircle size={16} /> },
+            { href: '/contacts',  label: 'WhatsApp Blast', sub: 'Cold outreach',   color: '#25D366', icon: 'M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413z' },
+            { href: '/campaigns', label: 'Email Campaign', sub: 'Bulk email ads',  color: '#AF52DE', icon: ['M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z','M22 6 12 13 2 6'] },
+            { href: '/sms',       label: 'SMS Blast',      sub: 'Text outreach',   color: '#FF9500', icon: ['M22 2 11 13','M22 2 15 22l-4-9-9-4 20-7'] },
+            { href: '/marketing', label: 'Meta Ads',        sub: 'Local targeting', color: '#007AFF', icon: ['M3 11l19-9-9 19-2-8-8-2z'] },
           ].map(a => (
-            <Link key={a.href} href={a.href} className="bg-white rounded-2xl p-4 flex items-center gap-3 hover:shadow-md transition-all border border-black/[0.04]" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+            <Link key={a.href} href={a.href} className="bg-white rounded-2xl p-4 flex items-center gap-3 hover:shadow-md transition-all" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
               <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${a.color}12` }}>
-                <span style={{ color: a.color }}>{a.icon}</span>
+                <Icon d={a.icon} size={16} color={a.color} />
               </div>
               <div className="min-w-0">
                 <p className="text-[#1C1C1E] text-xs font-semibold">{a.label}</p>
