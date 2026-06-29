@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
+import { supabaseBrowser } from '@/lib/supabase-browser'
 
 // â”€â”€â”€ Channel logo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -86,6 +87,25 @@ export default function InboxPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Supabase Realtime subscription for real-time updates
+  useEffect(() => {
+    const channel = supabaseBrowser
+      .channel('inbox-updates')
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'message_logs',
+      }, (payload: any) => {
+        // When a new message comes in, reload to bubble conversation to top
+        load()
+      })
+      .subscribe()
+
+    return () => {
+      supabaseBrowser.removeChannel(channel)
+    }
+  }, [load])
 
   // Group into conversations (latest message per contact/phone)
   const conversations = (() => {

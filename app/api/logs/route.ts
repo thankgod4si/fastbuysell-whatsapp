@@ -1,7 +1,6 @@
 export const dynamic = 'force-dynamic'
 
 import { NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 export async function GET(request: Request) {
@@ -14,7 +13,7 @@ export async function GET(request: Request) {
   const contactId = url.searchParams.get('contactId')
   const leadId = url.searchParams.get('leadId')
 
-  let query = supabase
+  let query = authClient
     .from('message_logs')
     .select('*')
     .eq('user_id', user.id)

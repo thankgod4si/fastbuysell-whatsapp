@@ -227,6 +227,7 @@ export default function DashboardPage() {
         .from('message_logs')
         .select('channel')
         .eq('direction', 'outbound')
+        .eq('user_id', user.id)
       setOutreach({
         whatsapp: (allOut ?? []).filter((l: any) => l.channel === 'whatsapp').length,
         email:    (allOut ?? []).filter((l: any) => l.channel === 'email').length,
