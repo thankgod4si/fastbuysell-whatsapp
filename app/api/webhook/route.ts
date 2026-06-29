@@ -1166,10 +1166,20 @@ export async function POST(request: Request) {
     }
 
     // If nobody has blasted this number yet, create/upsert under waOwnerId as fallback
+    let fallbackContactId: string | null = null
     if (!activeContacts?.length && waOwnerId) {
-      await supabase.from('contacts')
-        .upsert({ phone: from, user_id: waOwnerId, ...(waName ? { wa_name: waName } : {}) },
+      const { data: newContact } = await supabase.from('contacts')
+        .upsert({ 
+          phone: from, 
+          user_id: waOwnerId, 
+          channel: 'whatsapp',
+          status: 'new',
+          ...(waName ? { wa_name: waName, name: waName } : {}) 
+        },
           { onConflict: 'phone,user_id', ignoreDuplicates: false })
+        .select('id')
+        .single()
+      fallbackContactId = newContact?.id ?? null
     }
 
     // Primary contact for auto-reply sending context (prefer waOwner's, else first found)
@@ -1179,7 +1189,7 @@ export async function POST(request: Request) {
     // Targets to save messages to — all users who blasted this number
     const targets = activeContacts?.length
       ? activeContacts
-      : primaryUserId ? [{ id: undefined as string | undefined, user_id: primaryUserId, status: 'sent' as string }] : []
+      : fallbackContactId ? [{ id: fallbackContactId, user_id: primaryUserId, status: 'new' }] : []
 
     // Helper — get a user's published flow for auto-reply
     async function resolveFlowOpts(uid: string | null) {

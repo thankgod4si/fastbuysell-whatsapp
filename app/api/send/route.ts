@@ -75,8 +75,25 @@ export async function POST(request: Request) {
     }
     result = await sendTemplate(contact.phone, tpl.wa_template_name, tpl.language, [], phoneNumberId)
   } else {
-    // Fall back to platform default template
-    result = await sendInquiryTemplate(contact.phone, phoneNumberId)
+    // Fetch user's default template from Supabase instead of hardcoded fallback
+    if (contact.user_id) {
+      const { data: defaultTpl } = await supabase
+        .from('templates')
+        .select('wa_template_name, language, wa_status')
+        .eq('user_id', contact.user_id)
+        .eq('is_default', true)
+        .eq('wa_status', 'approved')
+        .maybeSingle()
+
+      if (defaultTpl) {
+        result = await sendTemplate(contact.phone, defaultTpl.wa_template_name, defaultTpl.language, [], phoneNumberId)
+      } else {
+        // Fallback to platform default template
+        result = await sendInquiryTemplate(contact.phone, phoneNumberId)
+      }
+    } else {
+      result = await sendInquiryTemplate(contact.phone, phoneNumberId)
+    }
   }
 
   if (result.error) {
